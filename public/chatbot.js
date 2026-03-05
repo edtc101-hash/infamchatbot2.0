@@ -198,6 +198,18 @@ function formatMessage(text) {
             </a>`).join('') +
             `</div>`;
     }
+    // 5단계: "내부 참고 메모" 영역을 접이식 토글로 변환
+    const memoRegex = /(<(?:p|h\d|strong|div)[^>]*>.*?(?:💡\s*내부\s*참고\s*메모|내부\s*참고\s*메모).*?<\/(?:p|h\d|strong|div)>)/i;
+    const memoIdx = formatted.search(memoRegex);
+    if (memoIdx > 0) {
+        const customerPart = formatted.substring(0, memoIdx);
+        const memoPart = formatted.substring(memoIdx);
+        formatted = customerPart +
+            `<details class="internal-memo-toggle">` +
+            `<summary class="internal-memo-summary">💡 내부 참고 메모 <span class="memo-arrow">▶</span></summary>` +
+            `<div class="internal-memo-content">${memoPart.replace(memoRegex, '')}</div>` +
+            `</details>`;
+    }
 
     return formatted + cardsHtml;
 }

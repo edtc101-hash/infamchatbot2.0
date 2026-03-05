@@ -1961,3 +1961,75 @@ textarea::-webkit-scrollbar {
     font-size: 12px;
   }
 }
+
+/* ─── 내부 참고 메모 접이식 토글 ─── */
+.internal-memo-toggle {
+  margin-top: 12px;
+  border: 1px solid #e0e0e0;
+  border-left: 3px solid var(--neon, #00e676);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f8f9fa;
+}
+
+.internal-memo-summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  color: #555;
+  user-select: none;
+  list-style: none;
+  transition: background 0.2s;
+}
+
+.internal-memo-summary::-webkit-details-marker {
+  display: none;
+}
+
+.internal-memo-summary:hover {
+  background: #f0f0f0;
+}
+
+.memo-arrow {
+  font-size: 10px;
+  transition: transform 0.2s ease;
+  color: #999;
+}
+
+.internal-memo-toggle[open] .memo-arrow {
+  transform: rotate(90deg);
+}
+
+.internal-memo-content {
+  padding: 0 14px 12px 14px;
+  font-size: 13px;
+  color: #666;
+  border-top: 1px solid #e8e8e8;
+  animation: memoSlideDown 0.2s ease;
+}
+
+.internal-memo-content p {
+  margin: 8px 0;
+}
+
+.internal-memo-content ul,
+.internal-memo-content ol {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+
+@keyframes memoSlideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+
+  to {
+    opacity: 1;
+    max-height: 500px;
+  }
+}
