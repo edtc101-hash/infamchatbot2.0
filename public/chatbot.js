@@ -700,56 +700,103 @@ async function aiImproveAnswer(btn) {
 }
 
 // ========================
-// @기록 메모 기능
+// @기록 메모 기능 (토스트 + 사이드바)
 // ========================
+
+// 토스트 알림 표시
+function showMemoToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `memo-toast memo-toast-${type}`;
+    const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'delete' ? '🗑️' : '📝';
+    toast.innerHTML = `
+        <div class="memo-toast-icon">${icon}</div>
+        <div class="memo-toast-body">${message}</div>
+        <button class="memo-toast-close" onclick="this.parentElement.remove()">✕</button>
+    `;
+    container.appendChild(toast);
+    // 5초 후 자동 제거
+    setTimeout(() => {
+        toast.classList.add('memo-toast-exit');
+        setTimeout(() => toast.remove(), 400);
+    }, 5000);
+}
+
+// 사이드바 기록보관소 로딩
+async function loadMemoArchive() {
+    const list = document.getElementById('memoArchiveList');
+    const badge = document.getElementById('memoCountBadge');
+    try {
+        const res = await fetch('/api/memos');
+        const data = await res.json();
+        if (!data.memos || data.memos.length === 0) {
+            list.innerHTML = '<div class="memo-empty">메모가 없습니다</div>';
+            badge.style.display = 'none';
+            return;
+        }
+        badge.style.display = 'inline-flex';
+        badge.textContent = data.total;
+
+        const pinnedMemos = data.memos.filter(m => m.pinned);
+        const normalMemos = data.memos.filter(m => !m.pinned);
+        const allMemos = [...pinnedMemos, ...normalMemos];
+
+        list.innerHTML = allMemos.map(memo => {
+            const date = new Date(memo.createdAt);
+            const dateStr = `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+            const pinClass = memo.pinned ? 'pinned' : '';
+            const pinIcon = memo.pinned ? '📌 ' : '';
+            return `<div class="memo-archive-item ${pinClass}" data-id="${memo.id}">
+                <div class="memo-item-content">${pinIcon}${escapeHtml(memo.content)}</div>
+                <div class="memo-item-meta">
+                    <span>${dateStr}</span>
+                    <span class="memo-item-actions">
+                        <button onclick="togglePinMemo('${memo.id}')" title="${memo.pinned ? '핀 해제' : '핀 고정'}">${memo.pinned ? '📌' : '📍'}</button>
+                        <button onclick="deleteMemoById('${memo.id}')" title="삭제">🗑️</button>
+                    </span>
+                </div>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        list.innerHTML = '<div class="memo-empty">불러오기 실패</div>';
+    }
+}
+
+// @기록 명령어 핸들러
 async function handleMemoCommand(message) {
     const content = message.replace(/^@기록\s*/, '').trim();
 
-    // @기록 or @기록 목록 → 목록 보기
+    // @기록 or @기록 목록 → 사이드바 열기 + 로딩
     if (!content || content === '목록') {
-        addMessage('@기록 목록', 'user');
-        try {
-            const res = await fetch('/api/memos');
-            const data = await res.json();
-            if (!data.memos || data.memos.length === 0) {
-                addMemoMessage('📝 저장된 메모가 없습니다.\n\n**사용법:**\n- `@기록 내용` — 메모 저장\n- `@기록 목록` — 저장된 메모 보기\n- `@기록 삭제 번호` — 메모 삭제\n- `@기록 전체삭제` — 모든 메모 삭제');
-            } else {
-                const pinnedMemos = data.memos.filter(m => m.pinned);
-                const normalMemos = data.memos.filter(m => !m.pinned);
-                const allMemos = [...pinnedMemos, ...normalMemos];
-                let listText = `📝 **저장된 메모** (${data.total}건)\n\n---\n`;
-                allMemos.forEach((memo, i) => {
-                    const date = new Date(memo.createdAt);
-                    const dateStr = `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
-                    const pin = memo.pinned ? '📌 ' : '';
-                    const num = i + 1;
-                    listText += `\n**${pin}${num}.** ${memo.content}\n<span style="font-size:11px;color:#999;">  └ ${memo.author} · ${dateStr}</span> · <a href="javascript:deleteMemo('${memo.id}', ${num})" style="font-size:11px;color:#ef4444;text-decoration:none;">삭제</a> · <a href="javascript:togglePinMemo('${memo.id}')" style="font-size:11px;color:#f59e0b;text-decoration:none;">${memo.pinned ? '핀 해제' : '📌 핀'}</a>\n`;
-                });
-                listText += `\n---\n💡 \`@기록 내용\` 으로 새 메모를 추가하세요`;
-                addMemoMessage(listText);
-            }
-        } catch (e) {
-            addMemoMessage('❌ 메모 목록을 불러올 수 없습니다: ' + e.message);
+        // 사이드바 열고 기록보관소 하이라이트
+        document.getElementById('sidebar').classList.add('open');
+        await loadMemoArchive();
+        const section = document.querySelector('.memo-archive-section');
+        if (section) {
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            section.classList.add('memo-highlight');
+            setTimeout(() => section.classList.remove('memo-highlight'), 2000);
         }
         return;
     }
 
     // @기록 전체삭제
     if (content === '전체삭제') {
-        addMessage('@기록 전체삭제', 'user');
         try {
             const res = await fetch('/api/memos');
             const data = await res.json();
             if (!data.memos || data.memos.length === 0) {
-                addMemoMessage('📝 삭제할 메모가 없습니다.');
+                showMemoToast('삭제할 메모가 없습니다', 'info');
                 return;
             }
+            if (!confirm(`${data.memos.length}건의 메모를 모두 삭제하시겠습니까?`)) return;
             for (const memo of data.memos) {
                 await fetch(`/api/memos/${memo.id}`, { method: 'DELETE' });
             }
-            addMemoMessage(`🗑️ **${data.memos.length}건의 메모가 모두 삭제되었습니다.**`);
+            showMemoToast(`${data.memos.length}건의 메모가 모두 삭제되었습니다`, 'delete');
+            await loadMemoArchive();
         } catch (e) {
-            addMemoMessage('❌ 전체 삭제 실패: ' + e.message);
+            showMemoToast('전체 삭제 실패: ' + e.message, 'error');
         }
         return;
     }
@@ -758,35 +805,25 @@ async function handleMemoCommand(message) {
     const deleteMatch = content.match(/^삭제\s+(\d+)$/);
     if (deleteMatch) {
         const idx = parseInt(deleteMatch[1]) - 1;
-        addMessage(`@기록 삭제 ${deleteMatch[1]}`, 'user');
         try {
             const res = await fetch('/api/memos');
             const data = await res.json();
-            const pinnedMemos = data.memos.filter(m => m.pinned);
-            const normalMemos = data.memos.filter(m => !m.pinned);
-            const allMemos = [...pinnedMemos, ...normalMemos];
+            const allMemos = [...data.memos.filter(m => m.pinned), ...data.memos.filter(m => !m.pinned)];
             if (idx < 0 || idx >= allMemos.length) {
-                addMemoMessage(`❌ ${deleteMatch[1]}번 메모가 존재하지 않습니다. (총 ${allMemos.length}건)`);
+                showMemoToast(`${deleteMatch[1]}번 메모가 없습니다 (총 ${allMemos.length}건)`, 'error');
                 return;
             }
             const target = allMemos[idx];
             await fetch(`/api/memos/${target.id}`, { method: 'DELETE' });
-            addMemoMessage(`🗑️ **삭제됨:** ${target.content}`);
+            showMemoToast(`삭제됨: "${target.content}"`, 'delete');
+            await loadMemoArchive();
         } catch (e) {
-            addMemoMessage('❌ 삭제 실패: ' + e.message);
+            showMemoToast('삭제 실패: ' + e.message, 'error');
         }
         return;
     }
 
-    // @기록 도움말
-    if (content === '도움말' || content === '?') {
-        addMessage('@기록 도움말', 'user');
-        addMemoMessage(`📝 **@기록 사용법**\n\n| 명령어 | 설명 |\n|--------|------|\n| \`@기록 내용\` | 새 메모 저장 |\n| \`@기록\` 또는 \`@기록 목록\` | 저장된 메모 조회 |\n| \`@기록 삭제 번호\` | 해당 번호 메모 삭제 |\n| \`@기록 전체삭제\` | 모든 메모 삭제 |\n| \`@기록 도움말\` | 이 도움말 표시 |`);
-        return;
-    }
-
-    // 기본: 메모 저장
-    addMessage(`@기록 ${content}`, 'user');
+    // 기본: 메모 저장 → 토스트 알림
     try {
         const res = await fetch('/api/memos', {
             method: 'POST',
@@ -795,54 +832,65 @@ async function handleMemoCommand(message) {
         });
         const data = await res.json();
         if (data.success) {
-            const date = new Date(data.memo.createdAt);
-            const dateStr = `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
-            addMemoMessage(`✅ **메모 저장 완료!**\n\n> ${content}\n\n📅 ${dateStr} · 총 ${data.total}건 저장됨\n\n💡 \`@기록 목록\`으로 전체 메모를 확인하세요`);
+            showMemoToast(`메모 저장 완료: "${content}"`, 'success');
+            await loadMemoArchive();
         } else {
-            addMemoMessage('❌ 메모 저장 실패: ' + (data.error || '알 수 없는 오류'));
+            showMemoToast('저장 실패: ' + (data.error || '알 수 없는 오류'), 'error');
         }
     } catch (e) {
-        addMemoMessage('❌ 메모 저장 실패: ' + e.message);
+        showMemoToast('저장 실패: ' + e.message, 'error');
     }
 }
 
-function addMemoMessage(text) {
-    const group = document.createElement('div');
-    group.className = 'message-group bot';
-    const timeStr = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-    const formattedText = formatMessage(text);
-    group.innerHTML = `
-    <div class="message-row">
-      <div class="msg-avatar bot"><img src="infam-logo.svg" alt="InFam" style="width: 100%; height: 100%; border-radius: 50%; object-fit: contain;"></div>
-      <div class="bubble memo-bubble">${formattedText}</div>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <span class="message-time">${timeStr}</span>
-      <span class="source-badge" style="background:rgba(0,230,118,0.1);color:#00c853;border-color:rgba(0,230,118,0.3);">📝 메모</span>
-    </div>`;
-    chatMessages.appendChild(group);
-    scrollToBottom();
+// 사이드바에서 메모 추가
+async function saveMemoFromSidebar() {
+    const input = document.getElementById('memoQuickInput');
+    const content = input.value.trim();
+    if (!content) return;
+    input.value = '';
+    try {
+        const res = await fetch('/api/memos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content, author: '직원' })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showMemoToast(`메모 저장: "${content}"`, 'success');
+            await loadMemoArchive();
+        }
+    } catch (e) {
+        showMemoToast('저장 실패: ' + e.message, 'error');
+    }
 }
 
-async function deleteMemo(id, num) {
-    if (!confirm(`${num}번 메모를 삭제하시겠습니까?`)) return;
+// 메모 삭제
+async function deleteMemoById(id) {
     try {
         await fetch(`/api/memos/${id}`, { method: 'DELETE' });
-        // 목록 새로고침
-        messageInput.value = '@기록 목록';
-        sendMessage();
+        showMemoToast('메모가 삭제되었습니다', 'delete');
+        await loadMemoArchive();
     } catch (e) {
-        alert('삭제 실패: ' + e.message);
+        showMemoToast('삭제 실패: ' + e.message, 'error');
     }
 }
 
+// 핀 토글
 async function togglePinMemo(id) {
     try {
         await fetch(`/api/memos/${id}/pin`, { method: 'PATCH' });
-        // 목록 새로고침
-        messageInput.value = '@기록 목록';
-        sendMessage();
+        await loadMemoArchive();
     } catch (e) {
-        alert('핀 토글 실패: ' + e.message);
+        showMemoToast('핀 토글 실패: ' + e.message, 'error');
     }
 }
+
+// 하위 호환 (기존 deleteMemo 호출 대비)
+async function deleteMemo(id, num) {
+    await deleteMemoById(id);
+}
+
+// 페이지 로드 시 기록보관소 초기화
+document.addEventListener('DOMContentLoaded', () => {
+    loadMemoArchive();
+});

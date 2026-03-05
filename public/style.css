@@ -2022,7 +2022,255 @@ textarea::-webkit-scrollbar {
   padding-left: 20px;
 }
 
-/* ─── 메모 버블 스타일 ─── */
+/* ─── 토스트 알림 (우측 상단) ─── */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.memo-toast {
+  pointer-events: all;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 300px;
+  max-width: 420px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-left: 4px solid var(--neon, #00e676);
+  animation: toastSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  font-size: 13px;
+  color: #333;
+}
+
+.memo-toast-success {
+  border-left-color: #00e676;
+}
+
+.memo-toast-error {
+  border-left-color: #ef4444;
+}
+
+.memo-toast-delete {
+  border-left-color: #f59e0b;
+}
+
+.memo-toast-info {
+  border-left-color: #3b82f6;
+}
+
+.memo-toast-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.memo-toast-body {
+  flex: 1;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.memo-toast-close {
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.memo-toast-close:hover {
+  background: #f0f0f0;
+  color: #555;
+}
+
+.memo-toast-exit {
+  animation: toastSlideOut 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes toastSlideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(100px);
+  }
+}
+
+/* ─── 사이드바 기록보관소 ─── */
+.memo-archive-section {
+  border-top: 1px solid #eee;
+  transition: background 0.3s;
+}
+
+.memo-archive-section.memo-highlight {
+  background: rgba(0, 230, 118, 0.08);
+}
+
+.memo-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--neon, #00e676);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.memo-archive-list {
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.memo-archive-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.memo-archive-list::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 4px;
+}
+
+.memo-archive-item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f8f9fa;
+  border: 1px solid #eee;
+  transition: all 0.15s;
+  cursor: default;
+}
+
+.memo-archive-item:hover {
+  background: #f0f0f0;
+  border-color: #ddd;
+}
+
+.memo-archive-item.pinned {
+  background: rgba(0, 230, 118, 0.06);
+  border-color: rgba(0, 230, 118, 0.25);
+}
+
+.memo-item-content {
+  font-size: 12.5px;
+  color: #333;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.memo-item-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: #aaa;
+}
+
+.memo-item-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.memo-item-actions button {
+  background: none;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 4px;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.memo-item-actions button:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.memo-empty {
+  text-align: center;
+  padding: 16px 8px;
+  color: #bbb;
+  font-size: 12px;
+}
+
+.memo-add-bar {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.memo-quick-input {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+  background: #fff;
+}
+
+.memo-quick-input:focus {
+  border-color: var(--neon, #00e676);
+}
+
+.memo-add-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: var(--neon, #00e676);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.memo-add-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(0, 230, 118, 0.3);
+}
+
+/* ─── 메모 버블 (하위 호환) ─── */
 .memo-bubble {
   border-left: 3px solid var(--neon, #00e676) !important;
   background: #f0fdf4 !important;

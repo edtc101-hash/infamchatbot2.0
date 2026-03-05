@@ -510,7 +510,27 @@
           </div>
         </div>
       </div>
+
+      <!-- 기록보관소 -->
+      <div class="sidebar-section memo-archive-section">
+        <h3 class="section-label" style="display:flex;align-items:center;gap:6px;">
+          📝 기록보관소
+          <span class="memo-count-badge" id="memoCountBadge" style="display:none;">0</span>
+        </h3>
+        <div class="memo-archive-list" id="memoArchiveList">
+          <div class="memo-empty">메모가 없습니다</div>
+        </div>
+        <div class="memo-add-bar">
+          <input type="text" id="memoQuickInput" class="memo-quick-input" placeholder="메모 입력 후 Enter..."
+            onkeydown="if(event.key==='Enter'){saveMemoFromSidebar();}" />
+          <button class="memo-add-btn" onclick="saveMemoFromSidebar()" title="메모 추가">+</button>
+        </div>
+      </div>
+
     </aside>
+
+    <!-- 토스트 알림 컨테이너 -->
+    <div class="toast-container" id="toastContainer"></div>
 
     <!-- 메인 채팅 영역 -->
     <main class="chat-main">
