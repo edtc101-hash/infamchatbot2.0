@@ -2933,8 +2933,9 @@ textarea::-webkit-scrollbar {
 
 .mfp-card-img {
   flex-shrink: 0;
-  width: 64px;
-  height: 64px;
+  width: 140px;
+  height: auto;
+  max-height: 160px;
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid #e8e8e8;
