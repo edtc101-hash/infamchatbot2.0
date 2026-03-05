@@ -17,6 +17,7 @@ try { require('dotenv').config(); } catch { /* dotenv 미설치 시 무시 */ }
 const upload = multer({ dest: path.join(__dirname, 'uploads/') });
 const { setApiKey, buildVectorStore, ragSearch, getRAGStatus } = require('./rag/rag-pipeline');
 const igGraphApi = require('./ig-graph-api');
+const { syncFromGitHub, syncToGitHub, isSyncEnabled } = require('./github-sync');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -67,6 +68,7 @@ function loadFAQData() {
 // FAQ 데이터 저장
 function saveFAQData(data) {
     fs.writeFileSync(FAQ_FILE, JSON.stringify(data, null, 2), 'utf8');
+    syncToGitHub('faq-data.json');
 }
 
 // 제품 카탈로그 데이터 로드
@@ -100,6 +102,7 @@ function loadLearnedData() {
 
 function saveLearnedData(data) {
     fs.writeFileSync(LEARNED_FILE, JSON.stringify(data, null, 2), 'utf8');
+    syncToGitHub('learned-data.json');
 }
 
 function findRelevantLearned(message, LEARNED_DATA) {
@@ -1587,6 +1590,7 @@ function loadMemos() {
 
 function saveMemos(data) {
     fs.writeFileSync(MEMO_FILE, JSON.stringify(data, null, 2), 'utf8');
+    syncToGitHub('memo-data.json');
 }
 
 // 메모 목록 조회
@@ -3076,11 +3080,15 @@ app.post('/api/ai/enhance', async (req, res) => {
 
 // === 서버 시작 (포트 충돌 자동 복구 포함) ===
 const server = app.listen(PORT, async () => {
+    // GitHub에서 최신 데이터 복원 (Render 재배포 대비)
+    await syncFromGitHub();
+
     const faqCount = loadFAQData().length;
     const learnCount = loadLearnedData().length;
     console.log(`🚀 인팸 AI 챗봇 서버 시작: http://localhost:${PORT}`);
     console.log(`📚 FAQ 데이터: ${faqCount}개 로드됨`);
     console.log(`🧠 학습 데이터: ${learnCount}개 로드됨`);
+    console.log(`☁️ GitHub 동기화: ${isSyncEnabled() ? '✅ 활성화' : '⚠️ 비활성 (GITHUB_TOKEN 미설정)'}`);
     console.log(`🔐 관리자 페이지: http://localhost:${PORT}/admin.html`);
     console.log(`📖 학습 페이지: http://localhost:${PORT}/learn.html`);
     console.log(`🔑 관리자 비밀번호: ${ADMIN_PASSWORD}`);

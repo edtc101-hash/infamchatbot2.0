@@ -2558,3 +2558,361 @@ textarea::-webkit-scrollbar {
     transform: translateY(0) scale(1);
   }
 }
+
+/* ─── 전체 기록보관소 팝업 ─── */
+.memo-full-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: popupFadeIn 0.25s ease;
+}
+
+.memo-full-popup-overlay.mfp-exit {
+  animation: popupFadeOut 0.25s ease forwards;
+}
+
+.memo-full-popup {
+  background: #fff;
+  border-radius: 20px;
+  width: 680px;
+  max-width: 94vw;
+  max-height: 85vh;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: popupSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mfp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.mfp-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mfp-header-left h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #222;
+}
+
+.mfp-total {
+  font-size: 13px;
+  font-weight: 600;
+  color: #888;
+  background: #f0f0f0;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+.mfp-close {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: #f5f5f5;
+  border-radius: 50%;
+  font-size: 18px;
+  color: #888;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.mfp-close:hover {
+  background: #eee;
+  color: #333;
+  transform: scale(1.05);
+}
+
+/* 담당자 필터 탭 */
+.mfp-filters {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 12px 24px;
+  border-bottom: 1px solid #f0f0f0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-shrink: 0;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #ccc transparent;
+}
+
+.mfp-filters::-webkit-scrollbar {
+  height: 4px;
+}
+
+.mfp-filters::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+.mfp-filters::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mfp-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border: 1px solid #e8e8e8;
+  border-radius: 20px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.mfp-tab:hover {
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+
+.mfp-tab.active {
+  background: linear-gradient(135deg, var(--neon, #00e676), #69f0ae);
+  color: #fff;
+  border-color: transparent;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0, 230, 118, 0.3);
+}
+
+.mfp-tab-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mfp-tab.active .mfp-tab-dot {
+  background: #fff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+/* 메모 카드 리스트 */
+.mfp-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mfp-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.mfp-body::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 6px;
+}
+
+.mfp-body::-webkit-scrollbar-thumb:hover {
+  background: #ccc;
+}
+
+.mfp-card {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #f8f9fa;
+  border: 1px solid #eee;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mfp-card:hover {
+  background: #f0f4f8;
+  border-color: #d0d0d0;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.mfp-card.pinned {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.mfp-card.pinned:hover {
+  background: #fef3c7;
+  border-color: #fcd34d;
+}
+
+.mfp-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.mfp-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.mfp-card-tags .memo-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+.mfp-no-tag {
+  font-size: 11px;
+  color: #bbb;
+  font-style: italic;
+}
+
+.mfp-card-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.mfp-card:hover .mfp-card-actions {
+  opacity: 1;
+}
+
+.mfp-card-actions button {
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.mfp-card-actions button:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.mfp-card-content {
+  font-size: 14px;
+  line-height: 1.55;
+  color: #333;
+  word-break: break-word;
+}
+
+.mfp-card-date {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: #aaa;
+}
+
+/* 비어있음 메시지 */
+.mfp-empty {
+  text-align: center;
+  padding: 48px 16px;
+  color: #999;
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.mfp-empty span {
+  font-size: 13px;
+  color: #bbb;
+}
+
+.mfp-loading {
+  text-align: center;
+  padding: 48px;
+  color: #aaa;
+  font-size: 14px;
+}
+
+/* 하단 입력바 */
+.mfp-footer {
+  padding: 14px 24px;
+  border-top: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.mfp-add-bar {
+  display: flex;
+  gap: 8px;
+}
+
+.mfp-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background: #fff;
+}
+
+.mfp-input:focus {
+  border-color: var(--neon, #00e676);
+  box-shadow: 0 0 0 3px rgba(0, 230, 118, 0.1);
+}
+
+.mfp-add-btn {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--neon, #00e676), #69f0ae);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.mfp-add-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 230, 118, 0.35);
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .memo-full-popup {
+    width: 100%;
+    max-width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .mfp-header {
+    padding: 16px 16px 12px;
+  }
+
+  .mfp-filters {
+    padding: 10px 16px;
+  }
+
+  .mfp-body {
+    padding: 12px 16px;
+  }
+
+  .mfp-footer {
+    padding: 12px 16px;
+  }
+}

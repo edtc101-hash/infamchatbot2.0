@@ -1006,3 +1006,175 @@ document.addEventListener('DOMContentLoaded', () => {
     loadMemoArchive();
 });
 
+// ========================
+// 전체 기록보관소 팝업 (담당자 필터)
+// ========================
+
+let memoFullPopupFilter = '전체';
+
+async function openMemoFullPopup() {
+    memoFullPopupFilter = '전체';
+
+    // 기존 팝업 제거
+    const old = document.getElementById('memoFullPopupOverlay');
+    if (old) old.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'memoFullPopupOverlay';
+    overlay.className = 'memo-full-popup-overlay';
+    overlay.onclick = (e) => { if (e.target === overlay) closeMemoFullPopup(); };
+
+    // 담당자 탭 생성
+    const allAuthors = Object.entries(MEMO_AUTHORS);
+    const filterTabs = [
+        `<button class="mfp-tab active" data-filter="전체" onclick="filterMemoFullPopup('전체', this)">전체</button>`,
+        ...allAuthors.map(([key, val]) =>
+            `<button class="mfp-tab" data-filter="${key}" onclick="filterMemoFullPopup('${key}', this)">
+                <span class="mfp-tab-dot" style="background:${val.color}"></span>${val.name}
+            </button>`
+        )
+    ].join('');
+
+    overlay.innerHTML = `
+        <div class="memo-full-popup">
+            <div class="mfp-header">
+                <div class="mfp-header-left">
+                    <h3>📝 기록보관소</h3>
+                    <span class="mfp-total" id="mfpTotal"></span>
+                </div>
+                <button class="mfp-close" onclick="closeMemoFullPopup()">✕</button>
+            </div>
+            <div class="mfp-filters" id="mfpFilters">
+                ${filterTabs}
+            </div>
+            <div class="mfp-body" id="mfpBody">
+                <div class="mfp-loading">불러오는 중...</div>
+            </div>
+            <div class="mfp-footer">
+                <div class="mfp-add-bar">
+                    <input type="text" id="mfpMemoInput" class="mfp-input" placeholder="새 메모 입력... (@이름으로 담당자 지정)" 
+                        onkeydown="if(event.key==='Enter'){saveMemoFromFullPopup();}" />
+                    <button class="mfp-add-btn" onclick="saveMemoFromFullPopup()">+ 추가</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+    document.addEventListener('keydown', memoFullPopupEscHandler);
+
+    // 데이터 로드
+    await renderMemoFullPopup();
+}
+
+function closeMemoFullPopup() {
+    const overlay = document.getElementById('memoFullPopupOverlay');
+    if (overlay) {
+        overlay.classList.add('mfp-exit');
+        setTimeout(() => overlay.remove(), 250);
+    }
+    document.removeEventListener('keydown', memoFullPopupEscHandler);
+}
+
+function memoFullPopupEscHandler(e) {
+    if (e.key === 'Escape') closeMemoFullPopup();
+}
+
+function filterMemoFullPopup(filter, btn) {
+    memoFullPopupFilter = filter;
+    // 탭 활성화
+    document.querySelectorAll('#mfpFilters .mfp-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    renderMemoFullPopup();
+}
+
+async function renderMemoFullPopup() {
+    const body = document.getElementById('mfpBody');
+    const totalBadge = document.getElementById('mfpTotal');
+    if (!body) return;
+
+    try {
+        const res = await fetch('/api/memos');
+        const data = await res.json();
+
+        if (!data.memos || data.memos.length === 0) {
+            body.innerHTML = '<div class="mfp-empty">📭 저장된 메모가 없습니다<br><span>하단 입력창에서 새 메모를 추가해보세요</span></div>';
+            totalBadge.textContent = '0건';
+            return;
+        }
+
+        // 필터링
+        let filtered = data.memos;
+        if (memoFullPopupFilter !== '전체') {
+            filtered = data.memos.filter(memo => {
+                const { tags } = parseMemoTags(memo.content);
+                return tags.some(t => t.key === memoFullPopupFilter);
+            });
+        }
+
+        totalBadge.textContent = `${filtered.length}건` + (memoFullPopupFilter !== '전체' ? ` / 전체 ${data.memos.length}건` : '');
+
+        if (filtered.length === 0) {
+            const authorInfo = MEMO_AUTHORS[memoFullPopupFilter];
+            body.innerHTML = `<div class="mfp-empty">${authorInfo ? authorInfo.emoji : '📭'} ${authorInfo ? authorInfo.name : ''} 담당 메모가 없습니다</div>`;
+            return;
+        }
+
+        // 핀 고정 → 일반 순서
+        const pinnedMemos = filtered.filter(m => m.pinned);
+        const normalMemos = filtered.filter(m => !m.pinned);
+        const allMemos = [...pinnedMemos, ...normalMemos];
+
+        body.innerHTML = allMemos.map(memo => {
+            const date = new Date(memo.createdAt);
+            const dateStr = `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+            const { tags, cleanContent } = parseMemoTags(memo.content);
+            const tagHtml = renderTagBadges(tags);
+            const pinIcon = memo.pinned ? '📌 ' : '';
+            const pinClass = memo.pinned ? 'pinned' : '';
+
+            return `<div class="mfp-card ${pinClass}" onclick="openMemoPopup('${memo.id}');closeMemoFullPopup();">
+                <div class="mfp-card-top">
+                    <div class="mfp-card-tags">${tagHtml || '<span class="mfp-no-tag">태그 없음</span>'}</div>
+                    <div class="mfp-card-actions">
+                        <button onclick="event.stopPropagation();togglePinMemo('${memo.id}').then(()=>renderMemoFullPopup())" title="${memo.pinned ? '핀 해제' : '핀 고정'}">${memo.pinned ? '📌' : '📍'}</button>
+                        <button onclick="event.stopPropagation();if(confirm('이 메모를 삭제하시겠습니까?')){deleteMemoById('${memo.id}').then(()=>renderMemoFullPopup())}" title="삭제">🗑️</button>
+                    </div>
+                </div>
+                <div class="mfp-card-content">${pinIcon}${escapeHtml(cleanContent)}</div>
+                <div class="mfp-card-date">${dateStr}</div>
+            </div>`;
+        }).join('');
+
+    } catch (e) {
+        body.innerHTML = '<div class="mfp-empty">❌ 불러오기 실패</div>';
+    }
+}
+
+async function saveMemoFromFullPopup() {
+    const input = document.getElementById('mfpMemoInput');
+    const content = input.value.trim();
+    if (!content) return;
+    input.value = '';
+
+    const { tags } = parseMemoTags(content);
+    const authorName = tags.length > 0 ? tags.map(t => t.name).join(', ') : '직원';
+
+    try {
+        const res = await fetch('/api/memos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content, author: authorName })
+        });
+        const data = await res.json();
+        if (data.success) {
+            const tagInfo = tags.length > 0 ? ` [${tags.map(t => t.emoji + t.name).join(', ')}]` : '';
+            showMemoToast(`메모 저장 완료${tagInfo}`, 'success');
+            await renderMemoFullPopup();
+            await loadMemoArchive();
+        }
+    } catch (e) {
+        showMemoToast('저장 실패: ' + e.message, 'error');
+    }
+}
+
