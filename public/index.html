@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet">
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#3a7d44">
+  <meta name="theme-color" content="#00e676">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -414,52 +414,6 @@
           </svg>
           <span>챗봇 밥주기</span>
         </a>
-        <a href="javascript:void(0)" class="nav-item" id="navUpload" onclick="switchView('upload')"
-          style="display:none">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"></path>
-          </svg>
-          <span>텍스트 업로드</span>
-        </a>
-        <a href="javascript:void(0)" class="nav-item" id="navErp" onclick="switchView('erp')">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 20V10M12 20V4M6 20v-6"></path>
-          </svg>
-          <span>ERP 대시보드</span>
-        </a>
-      </div>
-
-      <div class="sidebar-section">
-        <h3 class="section-label">🎨 인팸 디자인 AI</h3>
-        <a href="javascript:void(0)" class="nav-item" id="navDesign" onclick="switchView('design')">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 20h9"></path>
-            <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"></path>
-          </svg>
-          <span>이미지 제작소</span>
-        </a>
-        <a href="javascript:void(0)" class="nav-item" id="navContent" onclick="switchView('content')">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M23 7l-7 5 7 5V7z"></path>
-            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-          </svg>
-          <span>콘텐츠 자동화</span>
-        </a>
-        <a href="javascript:void(0)" class="nav-item" id="navMarketing" onclick="switchView('marketing')">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-          </svg>
-          <span>마케팅 인사이트</span>
-        </a>
-        <a href="javascript:void(0)" class="nav-item" id="navHalbuji" onclick="switchView('halbuji')">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-            <circle cx="8.5" cy="8.5" r="1.5"></circle>
-            <polyline points="21 15 16 10 5 21"></polyline>
-          </svg>
-          <span>할부지 편집기</span>
-        </a>
       </div>
 
       <div class="sidebar-section">
@@ -654,166 +608,7 @@
       </div>
     </main>
 
-    <!-- 인라인 뷰들 (같은 메인 영역에서 iframe으로 로드) -->
 
-    <!-- 학습 모드 뷰 (챗봇 페이지 표시) -->
-    <div class="content-view" id="learnView">
-      <header class="content-view-header">
-        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
-        <div class="cv-icon" style="background:linear-gradient(135deg,#059669,#34d399)">📚</div>
-        <div>
-          <div class="cv-title">학습 모드</div>
-          <div class="cv-sub">챗봇 학습 데이터 확인 및 관리</div>
-        </div>
-        <div class="cv-actions">
-          <span class="cv-badge"
-            style="background:rgba(5,150,105,0.1);border-color:rgba(5,150,105,0.25);color:#059669;">🤖 AI 챗봇</span>
-        </div>
-      </header>
-      <div class="content-iframe-wrap">
-        <iframe id="learnViewFrame" src="" style="width:100%;height:100%;border:none;"></iframe>
-      </div>
-    </div>
-
-    <!-- 텍스트 업로드 뷰 -->
-    <div class="content-view" id="uploadView">
-      <header class="content-view-header">
-        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
-        <div class="cv-icon" style="background:linear-gradient(135deg,#2563eb,#60a5fa)">📤</div>
-        <div>
-          <div class="cv-title">텍스트 업로드</div>
-          <div class="cv-sub">파일 기반 지식 업로드</div>
-        </div>
-        <div class="cv-actions">
-          <button class="cv-external-btn" onclick="window.open('/upload.html','_blank')" title="새 창에서 열기">↗ 새 창</button>
-        </div>
-      </header>
-      <div class="content-iframe-wrap">
-        <iframe id="uploadFrame" src="" style="width:100%;height:100%;border:none;"></iframe>
-      </div>
-    </div>
-
-    <!-- 콘텐츠 자동화 뷰 -->
-    <div class="content-view" id="contentView">
-      <header class="content-view-header">
-        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
-        <div class="cv-icon">🎬</div>
-        <div>
-          <div class="cv-title">콘텐츠 자동화 대시보드</div>
-          <div class="cv-sub">숏폼 영상 기획 → 제작 자동화</div>
-        </div>
-        <div class="cv-actions">
-          <span class="cv-badge">🎥 InFam Studio</span>
-          <button class="cv-external-btn" onclick="window.open('http://localhost:8000','_blank')" title="새 창에서 열기">↗ 새
-            창</button>
-        </div>
-      </header>
-      <div class="content-iframe-wrap">
-        <div class="cv-loading" id="cvLoading">
-          <div class="cv-spinner"></div>
-          <p style="font-size:13px;color:var(--text-muted)">대시보드 연결 중...</p>
-        </div>
-        <div class="cv-error" id="cvError">
-          <div style="font-size:44px;opacity:0.5">🔌</div>
-          <h3>서버에 연결할 수 없습니다</h3>
-          <p>콘텐츠 자동화 백엔드 서버가 실행 중인지 확인해주세요.</p>
-          <div class="cv-cmd">cd 콘텐츠 자동화 대시보드\backend<br>uvicorn main:app --reload --port 8000</div>
-          <button class="cv-retry-btn" onclick="loadContentDashboard()">🔄 다시 연결</button>
-        </div>
-        <iframe id="contentFrame" src="" style="display:none;"></iframe>
-      </div>
-    </div>
-
-    <!-- FAQ 관리 뷰 -->
-    <div class="content-view" id="adminView">
-      <header class="content-view-header">
-        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
-        <div class="cv-icon" style="background:linear-gradient(135deg,#d97706,#fbbf24)">⚙️</div>
-        <div>
-          <div class="cv-title">FAQ 관리</div>
-          <div class="cv-sub">FAQ 데이터 추가·수정·삭제</div>
-        </div>
-        <div class="cv-actions">
-          <button class="cv-external-btn" onclick="window.open('/admin.html','_blank')" title="새 창에서 열기">↗ 새 창</button>
-        </div>
-      </header>
-      <div class="content-iframe-wrap">
-        <iframe id="adminFrame" src="" style="width:100%;height:100%;border:none;"></iframe>
-      </div>
-    </div>
-
-    <!-- 이미지 제작소 뷰 -->
-    <div class="content-view" id="designView">
-      <div class="content-iframe-wrap" style="height:100%;">
-        <iframe id="designFrame" src="" style="width:100%;height:100%;border:none;"></iframe>
-      </div>
-    </div>
-
-    <!-- ERP 대시보드 뷰 -->
-    <div class="content-view" id="erpView">
-      <header class="content-view-header">
-        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
-        <div class="cv-icon" style="background:linear-gradient(135deg,#c9a96e,#f0d5a0)">📊</div>
-        <div>
-          <div class="cv-title">ERP 대시보드</div>
-          <div class="cv-sub">Ecount ERP 재고·매출·매입 현황</div>
-        </div>
-        <div class="cv-actions">
-          <span class="cv-badge"
-            style="background:rgba(176,141,87,0.1);border-color:rgba(176,141,87,0.25);color:#b08d57;">📊 Ecount
-            ERP</span>
-          <button class="cv-external-btn" onclick="window.open('/erp-dashboard.html','_blank')" title="새 창에서 열기">↗ 새
-            창</button>
-        </div>
-      </header>
-      <div class="content-iframe-wrap">
-        <iframe id="erpFrame" src="" style="width:100%;height:100%;border:none;"></iframe>
-      </div>
-    </div>
-
-    <!-- 마케팅 인사이트 뷰 -->
-    <div class="content-view" id="marketingView">
-      <header class="content-view-header">
-        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
-        <div class="cv-icon" style="background:linear-gradient(135deg,#6366f1,#a855f7)">📊</div>
-        <div>
-          <div class="cv-title">마케팅 인사이트</div>
-          <div class="cv-sub">판매 순위 분석 · AI 마케팅 전략</div>
-        </div>
-        <div class="cv-actions">
-          <span class="cv-badge"
-            style="background:rgba(99,102,241,0.1);border-color:rgba(99,102,241,0.25);color:#6366f1;">📈 Infam
-            Analysis</span>
-          <button class="cv-external-btn" onclick="window.open('/marketing-insight.html','_blank')" title="새 창에서 열기">↗ 새
-            창</button>
-        </div>
-      </header>
-      <div class="content-iframe-wrap">
-        <iframe id="marketingFrame" src="" style="width:100%;height:100%;border:none;"></iframe>
-      </div>
-    </div>
-
-    <!-- 할부지 편집기 뷰 -->
-    <div class="content-view" id="halbujiView">
-      <header class="content-view-header">
-        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
-        <div class="cv-icon" style="background:linear-gradient(135deg,#f97316,#fb923c)">🖼️</div>
-        <div>
-          <div class="cv-title">할부지 편집기</div>
-          <div class="cv-sub">이미지 편집 · AI 최적화 · 워터마크</div>
-        </div>
-        <div class="cv-actions">
-          <span class="cv-badge"
-            style="background:rgba(249,115,22,0.1);border-color:rgba(249,115,22,0.25);color:#f97316;">🖼️ Image
-            Editor</span>
-          <button class="cv-external-btn" onclick="window.open('/image-editor.html','_blank')" title="새 창에서 열기">↗ 새
-            창</button>
-        </div>
-      </header>
-      <div class="content-iframe-wrap">
-        <iframe id="halbujiFrame" src="" style="width:100%;height:100%;border:none;"></iframe>
-      </div>
-    </div>
   </div>
 
   <!-- 학습 모드 사이드 패널 (inbox 스타일) -->
@@ -837,19 +632,11 @@
 
   <script src="chatbot.js"></script>
   <script>
-    // === 뷰 전환 (챗봇 ↔ 학습 ↔ 업로드 ↔ 콘텐츠 ↔ FAQ관리) ===
+    // === 뷰 전환 (챗봇 ↔ 학습) ===
     const viewConfig = {
       chat: { viewId: null, navId: 'navChat', frameId: null, src: null },
       learn: { viewId: 'learnView', navId: 'navLearn', frameId: 'learnViewFrame', src: '/learn.html' },
-      upload: { viewId: 'uploadView', navId: 'navUpload', frameId: 'uploadFrame', src: '/upload.html' },
-      content: { viewId: 'contentView', navId: 'navContent', frameId: 'contentFrame', src: null },
-      admin: { viewId: 'adminView', navId: 'navAdmin', frameId: 'adminFrame', src: '/admin.html' },
-      design: { viewId: 'designView', navId: 'navDesign', frameId: 'designFrame', src: '/design-studio.html' },
-      erp: { viewId: 'erpView', navId: 'navErp', frameId: 'erpFrame', src: '/erp-dashboard.html' },
-      marketing: { viewId: 'marketingView', navId: 'navMarketing', frameId: 'marketingFrame', src: '/marketing-insight.html' },
-      halbuji: { viewId: 'halbujiView', navId: 'navHalbuji', frameId: 'halbujiFrame', src: '/image-editor.html' },
     };
-    let contentLoaded = false;
     let learnPanelLoaded = false;
     const loadedFrames = new Set();
 
@@ -861,7 +648,6 @@
       backdrop.classList.add('show');
       document.getElementById('navLearn').classList.add('active');
 
-      // 첫 로드 시에만 iframe src 설정
       if (!learnPanelLoaded) {
         document.getElementById('learnFrame').src = '/learn.html';
         learnPanelLoaded = true;
@@ -887,62 +673,31 @@
 
     function switchView(view) {
       const chatMain = document.querySelector('.chat-main');
-
-      // 학습 패널 닫기 (다른 뷰로 전환 시)
       closeLearnPanel();
 
-      // 모든 뷰 숨기기
       document.querySelectorAll('.content-view').forEach(v => v.classList.remove('view-active'));
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
       if (view === 'chat') {
         chatMain.classList.remove('view-hidden');
         document.getElementById('navChat').classList.add('active');
+      } else if (view === 'learn') {
+        // 학습 모드는 사이드 패널로 열기
+        chatMain.classList.remove('view-hidden');
+        document.getElementById('navChat').classList.add('active');
+        openLearnPanel();
       } else {
         chatMain.classList.add('view-hidden');
         const cfg = viewConfig[view];
         if (!cfg) return;
-
-        // 뷰 표시
         if (cfg.viewId) document.getElementById(cfg.viewId).classList.add('view-active');
         if (cfg.navId) document.getElementById(cfg.navId).classList.add('active');
-
-        // 콘텐츠 자동화는 특별 처리 (외부 서버)
-        if (view === 'content') {
-          if (!contentLoaded) loadContentDashboard();
-        } else if (cfg.src && cfg.frameId && !loadedFrames.has(view)) {
-          // 첫 로드 시에만 iframe src 설정
+        if (cfg.src && cfg.frameId && !loadedFrames.has(view)) {
           document.getElementById(cfg.frameId).src = cfg.src;
           loadedFrames.add(view);
         }
       }
-      // 모바일 사이드바 닫기
       if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('open');
-    }
-
-    function loadContentDashboard() {
-      const loading = document.getElementById('cvLoading');
-      const error = document.getElementById('cvError');
-      const frame = document.getElementById('contentFrame');
-
-      loading.classList.remove('hidden');
-      error.classList.remove('show');
-      frame.style.display = 'none';
-
-      fetch('http://localhost:8000/', { mode: 'no-cors' })
-        .then(() => {
-          frame.src = 'http://localhost:8000/';
-          frame.style.display = 'block';
-          frame.onload = () => {
-            loading.classList.add('hidden');
-            contentLoaded = true;
-          };
-          setTimeout(() => { loading.classList.add('hidden'); }, 10000);
-        })
-        .catch(() => {
-          loading.classList.add('hidden');
-          error.classList.add('show');
-        });
     }
   </script>
 </body>
