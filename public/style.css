@@ -2147,27 +2147,37 @@ textarea::-webkit-scrollbar {
 }
 
 .memo-archive-list {
-  max-height: 240px;
+  max-height: 360px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 2px 0;
+  gap: 10px;
+  padding: 4px 6px 4px 2px;
+  scrollbar-gutter: stable;
 }
 
 .memo-archive-list::-webkit-scrollbar {
-  width: 4px;
+  width: 6px;
+}
+
+.memo-archive-list::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border-radius: 6px;
 }
 
 .memo-archive-list::-webkit-scrollbar-thumb {
-  background: #ddd;
-  border-radius: 4px;
+  background: #c0c0c0;
+  border-radius: 6px;
+}
+
+.memo-archive-list::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
 }
 
 .memo-archive-item {
   position: relative;
-  padding: 8px 10px;
-  border-radius: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
   background: #f8f9fa;
   border: none;
   transition: all 0.15s;
