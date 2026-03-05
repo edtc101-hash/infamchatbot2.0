@@ -286,9 +286,103 @@ function prepareExcelDocuments() {
     }
     return docs;
 }
+/**
+ * TXT 문서를 벡터 문서로 변환
+ * data/ 폴더의 txt 파일 재귀적으로 파싱
+ * - SOP/업무 가이드 txt: 전체를 하나의 문서로 (필요 시 청킹)
+ * - 카카오톡 대화내역: 30줄씩 청킹
+ */
+function prepareTextDocuments() {
+    const dataDir = path.join(__dirname, '..', 'data');
+    if (!fs.existsSync(dataDir)) return [];
+
+    const docs = [];
+    const CHUNK_SIZE = 1500; // 글자 수 기준 청킹
+
+    function walkDir(dir) {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                walkDir(fullPath);
+            } else if (entry.name.endsWith('.txt')) {
+                try {
+                    const rawContent = fs.readFileSync(fullPath, 'utf-8');
+                    const content = rawContent.trim();
+                    if (content.length < 20) continue;
+
+                    const relPath = path.relative(dataDir, fullPath);
+                    const isKakao = relPath.includes('카톡대화') || relPath.includes('KakaoTalk');
+
+                    if (isKakao) {
+                        // 카카오톡 대화 → 30줄씩 청킹
+                        const lines = content.split('\n').filter(l => l.trim().length > 0);
+                        const LINES_PER_CHUNK = 30;
+                        for (let i = 0; i < lines.length; i += LINES_PER_CHUNK) {
+                            const chunk = lines.slice(i, i + LINES_PER_CHUNK).join('\n');
+                            if (chunk.length > 30) {
+                                docs.push({
+                                    id: `txt_kakao_${relPath.replace(/[\\/ ]+/g, '_')}_${i}`,
+                                    title: `카카오톡 대화내역 (${path.basename(entry.name, '.txt')}) - ${i + 1}~${Math.min(i + LINES_PER_CHUNK, lines.length)}줄`,
+                                    content: `[카카오톡 고객 대화 기록]\n${chunk}`,
+                                    category: '카카오톡대화',
+                                });
+                            }
+                        }
+                    } else {
+                        // 업무 SOP/가이드 → 청킹 (CHUNK_SIZE 기준)
+                        const fileName = path.basename(entry.name, '.txt');
+
+                        if (content.length <= CHUNK_SIZE) {
+                            docs.push({
+                                id: `txt_sop_${fileName.replace(/[\s]+/g, '_')}`,
+                                title: `업무 가이드: ${fileName}`,
+                                content: `[업무 가이드: ${fileName}]\n${content}`,
+                                category: '업무가이드',
+                            });
+                        } else {
+                            // 긴 문서는 문단/줄 기준 청킹
+                            const paragraphs = content.split(/\n\s*\n/);
+                            let currentChunk = '';
+                            let chunkIdx = 0;
+
+                            for (const para of paragraphs) {
+                                if ((currentChunk + '\n\n' + para).length > CHUNK_SIZE && currentChunk.length > 50) {
+                                    docs.push({
+                                        id: `txt_sop_${fileName.replace(/[\s]+/g, '_')}_${chunkIdx}`,
+                                        title: `업무 가이드: ${fileName} (파트 ${chunkIdx + 1})`,
+                                        content: `[업무 가이드: ${fileName}]\n${currentChunk.trim()}`,
+                                        category: '업무가이드',
+                                    });
+                                    currentChunk = para;
+                                    chunkIdx++;
+                                } else {
+                                    currentChunk += '\n\n' + para;
+                                }
+                            }
+                            if (currentChunk.trim().length > 50) {
+                                docs.push({
+                                    id: `txt_sop_${fileName.replace(/[\s]+/g, '_')}_${chunkIdx}`,
+                                    title: `업무 가이드: ${fileName} (파트 ${chunkIdx + 1})`,
+                                    content: `[업무 가이드: ${fileName}]\n${currentChunk.trim()}`,
+                                    category: '업무가이드',
+                                });
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`📄 TXT 파싱 실패: ${relPath} — ${err.message}`);
+                }
+            }
+        }
+    }
+
+    walkDir(dataDir);
+    return docs;
+}
 
 /**
- * 전체 벡터 스토어 빌드 (FAQ + 제품 + 학습 + 카탈로그 + Excel)
+ * 전체 벡터 스토어 빌드 (FAQ + 제품 + 학습 + 카탈로그 + Excel + TXT)
  * 서버 시작 시 또는 수동으로 호출
  */
 async function buildVectorStore() {
@@ -314,9 +408,10 @@ async function buildVectorStore() {
         const excelDocs = prepareExcelDocuments();
         const erpDocs = prepareERPDocuments();
         const companyDocs = prepareCompanyDocuments();
-        const allDocs = [...faqDocs, ...productDocs, ...learnedDocs, ...catalogDocs, ...excelDocs, ...erpDocs, ...companyDocs];
+        const txtDocs = prepareTextDocuments();
+        const allDocs = [...faqDocs, ...productDocs, ...learnedDocs, ...catalogDocs, ...excelDocs, ...erpDocs, ...companyDocs, ...txtDocs];
 
-        console.log(`📄 문서 준비 완료: FAQ ${faqDocs.length}개, 제품 ${productDocs.length}개, 학습 ${learnedDocs.length}개, 카탈로그 ${catalogDocs.length}개, Excel ${excelDocs.length}개, ERP ${erpDocs.length}개, 회사 ${companyDocs.length}개 (총 ${allDocs.length}개)`);
+        console.log(`📄 문서 준비 완료: FAQ ${faqDocs.length}개, 제품 ${productDocs.length}개, 학습 ${learnedDocs.length}개, 카탈로그 ${catalogDocs.length}개, Excel ${excelDocs.length}개, ERP ${erpDocs.length}개, 회사 ${companyDocs.length}개, TXT ${txtDocs.length}개 (총 ${allDocs.length}개)`);
 
         if (allDocs.length === 0) {
             console.log('⚠️ 인덱싱할 문서가 없습니다.');
@@ -410,4 +505,5 @@ module.exports = {
     prepareLearnedDocuments,
     prepareERPDocuments,
     prepareCompanyDocuments,
+    prepareTextDocuments,
 };
