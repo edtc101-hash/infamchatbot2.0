@@ -2916,3 +2916,273 @@ textarea::-webkit-scrollbar {
     padding: 12px 16px;
   }
 }
+
+/* ─── @직원 업무 매뉴얼 ─── */
+
+/* 채팅 내 매뉴얼 카드 */
+.manual-chat-results {
+  max-width: 100%;
+}
+
+.manual-chat-header {
+  font-size: 15px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e8f5e9;
+}
+
+.manual-chat-header strong {
+  color: var(--neon, #00e676);
+}
+
+.manual-chat-group {
+  margin-bottom: 14px;
+}
+
+.manual-chat-group-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #555;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.manual-chat-group-title span {
+  color: #aaa;
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.manual-chat-card {
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #f8f9fa;
+  border: 1px solid #eee;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.manual-chat-card:hover {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  transform: translateX(3px);
+}
+
+.manual-chat-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.manual-chat-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.manual-chat-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #333;
+  flex: 1;
+}
+
+.manual-chat-cat {
+  font-size: 11px;
+  color: #888;
+  background: #f0f0f0;
+  padding: 2px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.manual-chat-snippet {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #888;
+  line-height: 1.4;
+  padding-left: 24px;
+}
+
+.manual-chat-tip {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #999;
+  text-align: center;
+}
+
+.manual-chat-tip code {
+  background: #e8f5e9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #2e7d32;
+  font-family: inherit;
+  font-weight: 600;
+}
+
+/* 사이드바 매뉴얼 목록 */
+.manual-archive-list {
+  max-height: 250px;
+  overflow-y: auto;
+  padding: 0 4px;
+}
+
+.manual-archive-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.manual-archive-list::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 4px;
+}
+
+.manual-sidebar-group {
+  margin-bottom: 8px;
+}
+
+.manual-sidebar-cat {
+  font-size: 11px;
+  font-weight: 700;
+  color: #888;
+  padding: 4px 0 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.manual-sidebar-item {
+  padding: 6px 10px;
+  font-size: 12.5px;
+  color: #444;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin: 1px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.manual-sidebar-item:hover {
+  background: #e8f5e9;
+  color: #2e7d32;
+  padding-left: 14px;
+}
+
+/* 매뉴얼 상세 팝업 */
+.manual-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(5px);
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: popupFadeIn 0.25s ease;
+}
+
+.manual-popup-overlay.manual-popup-exit {
+  animation: popupFadeOut 0.25s ease forwards;
+}
+
+.manual-popup {
+  background: #fff;
+  border-radius: 18px;
+  width: 600px;
+  max-width: 92vw;
+  max-height: 82vh;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.22);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: popupSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.manual-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid #f0f0f0;
+  background: linear-gradient(135deg, #f0fdf4, #fff);
+}
+
+.manual-popup-header h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  color: #222;
+}
+
+.manual-popup-close {
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: #f5f5f5;
+  border-radius: 50%;
+  font-size: 16px;
+  color: #888;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.manual-popup-close:hover {
+  background: #eee;
+  color: #333;
+}
+
+.manual-popup-body {
+  padding: 20px 24px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.manual-popup-meta {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.manual-popup-cat {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2e7d32;
+  background: #e8f5e9;
+  padding: 4px 12px;
+  border-radius: 12px;
+}
+
+.manual-popup-file {
+  font-size: 12px;
+  color: #999;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.manual-popup-content {
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: #333;
+}
+
+.manual-popup-content p {
+  margin: 0 0 10px;
+}
+
+@media (max-width: 768px) {
+  .manual-popup {
+    width: 100%;
+    max-width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+}

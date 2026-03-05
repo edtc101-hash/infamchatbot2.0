@@ -9,6 +9,7 @@ const cheerio = require('cheerio');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { GoogleGenAI } = require('@google/genai');
 const { BRAND_KNOWLEDGE } = require('./knowledge-base');
+const { createClient } = require('@supabase/supabase-js');
 
 // .env 파일 로드 (로컬 개발용)
 try { require('dotenv').config(); } catch { /* dotenv 미설치 시 무시 */ }
@@ -1575,65 +1576,264 @@ app.delete('/api/admin/learned/:id', adminAuth, (req, res) => {
 });
 
 // ========================
-// 메모 기능 (@기록)
+// 메모 기능 (@기록) — Supabase 영구 저장 + 파일 폴백
 // ========================
 const MEMO_FILE = path.join(__dirname, 'memo-data.json');
 
-function loadMemos() {
+// Supabase 초기화
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_KEY = process.env.SUPABASE_KEY || '';
+let supabase = null;
+if (SUPABASE_URL && SUPABASE_KEY) {
+    supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+    console.log('✅ Supabase 연결 완료 (메모 영구 저장 활성화)');
+} else {
+    console.log('⚠️ Supabase 미설정 — 파일 기반 메모 저장 사용 (재시작 시 초기화될 수 있음)');
+}
+
+// 파일 기반 폴백 함수
+function loadMemosFromFile() {
     try {
         if (fs.existsSync(MEMO_FILE)) {
             return JSON.parse(fs.readFileSync(MEMO_FILE, 'utf8'));
         }
-    } catch (e) { console.error('메모 로드 오류:', e); }
+    } catch (e) { console.error('메모 파일 로드 오류:', e); }
     return [];
 }
 
-function saveMemos(data) {
+function saveMemosToFile(data) {
     fs.writeFileSync(MEMO_FILE, JSON.stringify(data, null, 2), 'utf8');
     syncToGitHub('memo-data.json');
 }
 
 // 메모 목록 조회
-app.get('/api/memos', (req, res) => {
-    const memos = loadMemos();
-    res.json({ success: true, memos, total: memos.length });
+app.get('/api/memos', async (req, res) => {
+    try {
+        if (supabase) {
+            const { data, error } = await supabase
+                .from('memos')
+                .select('*')
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+            const memos = data.map(m => ({
+                id: m.id,
+                content: m.content,
+                author: m.author,
+                createdAt: m.created_at,
+                pinned: m.pinned
+            }));
+            return res.json({ success: true, memos, total: memos.length });
+        }
+        // 파일 폴백
+        const memos = loadMemosFromFile();
+        res.json({ success: true, memos, total: memos.length });
+    } catch (e) {
+        console.error('메모 조회 오류:', e.message);
+        const memos = loadMemosFromFile();
+        res.json({ success: true, memos, total: memos.length });
+    }
 });
 
 // 메모 추가
-app.post('/api/memos', (req, res) => {
+app.post('/api/memos', async (req, res) => {
     const { content, author } = req.body;
     if (!content || !content.trim()) return res.status(400).json({ error: '메모 내용을 입력해주세요.' });
-    const memos = loadMemos();
+
     const memo = {
         id: 'memo_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
         content: content.trim(),
         author: author || '익명',
-        createdAt: new Date().toISOString(),
         pinned: false
     };
-    memos.unshift(memo);
-    saveMemos(memos);
-    res.json({ success: true, memo, total: memos.length });
+
+    try {
+        if (supabase) {
+            const { data, error } = await supabase
+                .from('memos')
+                .insert({ id: memo.id, content: memo.content, author: memo.author, pinned: false })
+                .select()
+                .single();
+            if (error) throw error;
+            memo.createdAt = data.created_at;
+            return res.json({ success: true, memo, total: 0 });
+        }
+        // 파일 폴백
+        memo.createdAt = new Date().toISOString();
+        const memos = loadMemosFromFile();
+        memos.unshift(memo);
+        saveMemosToFile(memos);
+        res.json({ success: true, memo, total: memos.length });
+    } catch (e) {
+        console.error('메모 저장 오류:', e.message);
+        memo.createdAt = new Date().toISOString();
+        const memos = loadMemosFromFile();
+        memos.unshift(memo);
+        saveMemosToFile(memos);
+        res.json({ success: true, memo, total: memos.length });
+    }
 });
 
 // 메모 삭제
-app.delete('/api/memos/:id', (req, res) => {
-    const memos = loadMemos();
-    const idx = memos.findIndex(m => m.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ error: '메모를 찾을 수 없습니다.' });
-    const removed = memos.splice(idx, 1)[0];
-    saveMemos(memos);
-    res.json({ success: true, removed });
+app.delete('/api/memos/:id', async (req, res) => {
+    try {
+        if (supabase) {
+            const { error } = await supabase
+                .from('memos')
+                .delete()
+                .eq('id', req.params.id);
+            if (error) throw error;
+            return res.json({ success: true });
+        }
+        // 파일 폴백
+        const memos = loadMemosFromFile();
+        const idx = memos.findIndex(m => m.id === req.params.id);
+        if (idx === -1) return res.status(404).json({ error: '메모를 찾을 수 없습니다.' });
+        const removed = memos.splice(idx, 1)[0];
+        saveMemosToFile(memos);
+        res.json({ success: true, removed });
+    } catch (e) {
+        console.error('메모 삭제 오류:', e.message);
+        const memos = loadMemosFromFile();
+        const idx = memos.findIndex(m => m.id === req.params.id);
+        if (idx === -1) return res.status(404).json({ error: '메모를 찾을 수 없습니다.' });
+        const removed = memos.splice(idx, 1)[0];
+        saveMemosToFile(memos);
+        res.json({ success: true, removed });
+    }
 });
 
 // 메모 핀 토글
-app.patch('/api/memos/:id/pin', (req, res) => {
-    const memos = loadMemos();
-    const memo = memos.find(m => m.id === req.params.id);
-    if (!memo) return res.status(404).json({ error: '메모를 찾을 수 없습니다.' });
-    memo.pinned = !memo.pinned;
-    saveMemos(memos);
-    res.json({ success: true, memo });
+app.patch('/api/memos/:id/pin', async (req, res) => {
+    try {
+        if (supabase) {
+            // 현재 상태 조회
+            const { data: current, error: fetchErr } = await supabase
+                .from('memos')
+                .select('pinned')
+                .eq('id', req.params.id)
+                .single();
+            if (fetchErr) throw fetchErr;
+            // 토글
+            const { data, error } = await supabase
+                .from('memos')
+                .update({ pinned: !current.pinned })
+                .eq('id', req.params.id)
+                .select()
+                .single();
+            if (error) throw error;
+            return res.json({ success: true, memo: { id: data.id, pinned: data.pinned } });
+        }
+        // 파일 폴백
+        const memos = loadMemosFromFile();
+        const memo = memos.find(m => m.id === req.params.id);
+        if (!memo) return res.status(404).json({ error: '메모를 찾을 수 없습니다.' });
+        memo.pinned = !memo.pinned;
+        saveMemosToFile(memos);
+        res.json({ success: true, memo });
+    } catch (e) {
+        console.error('메모 핀 토글 오류:', e.message);
+        const memos = loadMemosFromFile();
+        const memo = memos.find(m => m.id === req.params.id);
+        if (!memo) return res.status(404).json({ error: '메모를 찾을 수 없습니다.' });
+        memo.pinned = !memo.pinned;
+        saveMemosToFile(memos);
+        res.json({ success: true, memo });
+    }
+});
+
+// ========================
+// 업무 매뉴얼 API (@직원)
+// ========================
+const MANUAL_DIR = path.join(__dirname, 'data');
+
+// 매뉴얼 카테고리 자동 분류
+function classifyManual(filename) {
+    const name = filename.toLowerCase();
+    if (name.includes('디자인') || name.includes('카메라') || name.includes('영상')) return { category: '디자인/영상', icon: '🎨' };
+    if (name.includes('배송') || name.includes('배차') || name.includes('택배') || name.includes('퀵')) return { category: '배송/물류', icon: '🚚' };
+    if (name.includes('주문') || name.includes('결제') || name.includes('매출') || name.includes('입금') || name.includes('카드')) return { category: '주문/결제', icon: '💳' };
+    if (name.includes('상담') || name.includes('문의') || name.includes('반품') || name.includes('교환') || name.includes('취소')) return { category: '고객응대', icon: '📞' };
+    if (name.includes('등록') || name.includes('이카운트') || name.includes('거래처')) return { category: '시스템등록', icon: '📋' };
+    if (name.includes('이메일') || name.includes('아웃바운드') || name.includes('수집')) return { category: '영업/마케팅', icon: '📧' };
+    if (name.includes('자재') || name.includes('방염') || name.includes('발주')) return { category: '자재/발주', icon: '📦' };
+    return { category: '기타', icon: '📄' };
+}
+
+// 매뉴얼 목록
+app.get('/api/manuals', (req, res) => {
+    try {
+        const files = fs.readdirSync(MANUAL_DIR)
+            .filter(f => f.endsWith('.txt'))
+            .map(f => {
+                const stat = fs.statSync(path.join(MANUAL_DIR, f));
+                const { category, icon } = classifyManual(f);
+                return {
+                    filename: f,
+                    title: f.replace(/\.txt$/, '').replace(/^\d+\.\s*/, ''),
+                    category,
+                    icon,
+                    size: stat.size,
+                    updatedAt: stat.mtime.toISOString()
+                };
+            })
+            .sort((a, b) => a.category.localeCompare(b.category));
+        res.json({ success: true, manuals: files, total: files.length });
+    } catch (e) {
+        console.error('매뉴얼 목록 오류:', e.message);
+        res.json({ success: true, manuals: [], total: 0 });
+    }
+});
+
+// 매뉴얼 검색
+app.get('/api/manuals/search', (req, res) => {
+    const query = (req.query.q || '').trim().toLowerCase();
+    if (!query) return res.json({ success: true, results: [] });
+    try {
+        const files = fs.readdirSync(MANUAL_DIR).filter(f => f.endsWith('.txt'));
+        const results = [];
+        for (const f of files) {
+            const title = f.replace(/\.txt$/, '').replace(/^\d+\.\s*/, '');
+            const content = fs.readFileSync(path.join(MANUAL_DIR, f), 'utf8');
+            const titleMatch = title.toLowerCase().includes(query);
+            const contentMatch = content.toLowerCase().includes(query);
+            if (titleMatch || contentMatch) {
+                const { category, icon } = classifyManual(f);
+                // 매칭 스니펫 추출
+                let snippet = '';
+                if (contentMatch) {
+                    const idx = content.toLowerCase().indexOf(query);
+                    const start = Math.max(0, idx - 40);
+                    const end = Math.min(content.length, idx + query.length + 80);
+                    snippet = (start > 0 ? '...' : '') + content.substring(start, end).replace(/\r?\n/g, ' ') + (end < content.length ? '...' : '');
+                }
+                results.push({ filename: f, title, category, icon, snippet, titleMatch });
+            }
+        }
+        // 제목 매치 우선
+        results.sort((a, b) => (b.titleMatch ? 1 : 0) - (a.titleMatch ? 1 : 0));
+        res.json({ success: true, results, total: results.length, query });
+    } catch (e) {
+        console.error('매뉴얼 검색 오류:', e.message);
+        res.json({ success: true, results: [], total: 0 });
+    }
+});
+
+// 매뉴얼 상세 조회
+app.get('/api/manuals/:filename', (req, res) => {
+    try {
+        const filename = decodeURIComponent(req.params.filename);
+        const filePath = path.join(MANUAL_DIR, filename);
+        // 경로 탈출 방지
+        if (!filePath.startsWith(MANUAL_DIR)) return res.status(403).json({ error: '접근 거부' });
+        if (!fs.existsSync(filePath)) return res.status(404).json({ error: '매뉴얼을 찾을 수 없습니다.' });
+        const content = fs.readFileSync(filePath, 'utf8');
+        const { category, icon } = classifyManual(filename);
+        const title = filename.replace(/\.txt$/, '').replace(/^\d+\.\s*/, '');
+        res.json({ success: true, filename, title, category, icon, content });
+    } catch (e) {
+        console.error('매뉴얼 조회 오류:', e.message);
+        res.status(500).json({ error: '매뉴얼 로드 실패' });
+    }
 });
 
 // ========================

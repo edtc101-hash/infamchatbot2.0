@@ -426,6 +426,16 @@ async function sendMessage() {
         return;
     }
 
+    // === @직원 명령어 처리 ===
+    if (message.startsWith('@직원')) {
+        messageInput.value = '';
+        autoResize(messageInput);
+        const welcome = document.getElementById('welcomeSection');
+        if (welcome) welcome.remove();
+        await handleManualCommand(message);
+        return;
+    }
+
     const welcome = document.getElementById('welcomeSection');
     if (welcome) welcome.remove();
 
@@ -1178,3 +1188,288 @@ async function saveMemoFromFullPopup() {
     }
 }
 
+// ========================
+// @직원 업무 매뉴얼 시스템
+// ========================
+
+async function handleManualCommand(message) {
+    const query = message.replace(/^@직원\s*/, '').trim();
+
+    // 사용자 메시지 표시
+    addMessage(message, 'user');
+
+    try {
+        let data;
+        if (query) {
+            // 키워드 검색
+            const res = await fetch(`/api/manuals/search?q=${encodeURIComponent(query)}`);
+            data = await res.json();
+            if (!data.results || data.results.length === 0) {
+                addMessage(`📖 "${query}" 관련 매뉴얼을 찾을 수 없습니다.\n\n전체 목록을 보려면 \`@직원\`만 입력해주세요.`, 'bot');
+                return;
+            }
+            // 검색 결과 카드
+            const cards = data.results.map(m =>
+                `<div class="manual-chat-card" onclick="openManualPopup('${encodeURIComponent(m.filename)}')">
+                    <div class="manual-chat-card-header">
+                        <span class="manual-chat-icon">${m.icon}</span>
+                        <span class="manual-chat-title">${escapeHtml(m.title)}</span>
+                        <span class="manual-chat-cat">${m.category}</span>
+                    </div>
+                    ${m.snippet ? `<div class="manual-chat-snippet">${escapeHtml(m.snippet)}</div>` : ''}
+                </div>`
+            ).join('');
+
+            const botMsg = `<div class="manual-chat-results">
+                <div class="manual-chat-header">📖 "${escapeHtml(query)}" 검색 결과 <strong>${data.results.length}건</strong></div>
+                ${cards}
+                <div class="manual-chat-tip">카드를 클릭하면 전체 내용을 볼 수 있습니다</div>
+            </div>`;
+            addMessage(botMsg, 'bot', true);
+        } else {
+            // 전체 매뉴얼 목록
+            const res = await fetch('/api/manuals');
+            data = await res.json();
+            if (!data.manuals || data.manuals.length === 0) {
+                addMessage('📖 등록된 매뉴얼이 없습니다.', 'bot');
+                return;
+            }
+            // 카테고리별 그룹핑
+            const groups = {};
+            data.manuals.forEach(m => {
+                if (!groups[m.category]) groups[m.category] = { icon: m.icon, items: [] };
+                groups[m.category].items.push(m);
+            });
+
+            let cardsHtml = '';
+            for (const [cat, group] of Object.entries(groups)) {
+                cardsHtml += `<div class="manual-chat-group">
+                    <div class="manual-chat-group-title">${group.icon} ${cat} <span>(${group.items.length})</span></div>
+                    ${group.items.map(m =>
+                    `<div class="manual-chat-card" onclick="openManualPopup('${encodeURIComponent(m.filename)}')">
+                            <div class="manual-chat-card-header">
+                                <span class="manual-chat-title">${escapeHtml(m.title)}</span>
+                            </div>
+                        </div>`
+                ).join('')}
+                </div>`;
+            }
+
+            const botMsg = `<div class="manual-chat-results">
+                <div class="manual-chat-header">📖 업무 매뉴얼 전체 목록 <strong>${data.manuals.length}건</strong></div>
+                ${cardsHtml}
+                <div class="manual-chat-tip">💡 <code>@직원 배차</code>처럼 키워드를 추가하면 관련 매뉴얼만 검색됩니다</div>
+            </div>`;
+            addMessage(botMsg, 'bot', true);
+        }
+    } catch (e) {
+        addMessage('❌ 매뉴얼 로드 실패: ' + e.message, 'bot');
+    }
+}
+
+// 매뉴얼 상세 팝업
+async function openManualPopup(encodedFilename) {
+    const filename = decodeURIComponent(encodedFilename);
+    // 기존 팝업 제거
+    const old = document.getElementById('manualPopupOverlay');
+    if (old) old.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'manualPopupOverlay';
+    overlay.className = 'manual-popup-overlay';
+    overlay.onclick = (e) => { if (e.target === overlay) closeManualPopup(); };
+
+    overlay.innerHTML = `
+        <div class="manual-popup">
+            <div class="manual-popup-header">
+                <h3>📖 로딩 중...</h3>
+                <button class="manual-popup-close" onclick="closeManualPopup()">✕</button>
+            </div>
+            <div class="manual-popup-body"><div class="mfp-loading">불러오는 중...</div></div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+    document.addEventListener('keydown', manualPopupEscHandler);
+
+    try {
+        const res = await fetch(`/api/manuals/${encodedFilename}`);
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        const header = overlay.querySelector('.manual-popup-header h3');
+        header.textContent = `${data.icon} ${data.title}`;
+
+        const body = overlay.querySelector('.manual-popup-body');
+        // 내용을 단락으로 분리
+        const paragraphs = data.content.split(/\r?\n/).filter(l => l.trim()).map(l => `<p>${escapeHtml(l)}</p>`).join('');
+
+        body.innerHTML = `
+            <div class="manual-popup-meta">
+                <span class="manual-popup-cat">${data.icon} ${data.category}</span>
+                <span class="manual-popup-file">📁 ${data.filename}</span>
+            </div>
+            <div class="manual-popup-content">${paragraphs}</div>
+        `;
+    } catch (e) {
+        const body = overlay.querySelector('.manual-popup-body');
+        body.innerHTML = `<div class="mfp-empty">❌ 로드 실패: ${e.message}</div>`;
+    }
+}
+
+function closeManualPopup() {
+    const overlay = document.getElementById('manualPopupOverlay');
+    if (overlay) {
+        overlay.classList.add('manual-popup-exit');
+        setTimeout(() => overlay.remove(), 250);
+    }
+    document.removeEventListener('keydown', manualPopupEscHandler);
+}
+
+function manualPopupEscHandler(e) {
+    if (e.key === 'Escape') closeManualPopup();
+}
+
+// 사이드바 매뉴얼 목록 로드
+async function loadManualSidebar() {
+    const list = document.getElementById('manualArchiveList');
+    if (!list) return;
+
+    try {
+        const res = await fetch('/api/manuals');
+        const data = await res.json();
+
+        if (!data.manuals || data.manuals.length === 0) {
+            list.innerHTML = '<div class="memo-empty">매뉴얼이 없습니다</div>';
+            return;
+        }
+
+        // 카테고리별 그룹
+        const groups = {};
+        data.manuals.forEach(m => {
+            if (!groups[m.category]) groups[m.category] = { icon: m.icon, items: [] };
+            groups[m.category].items.push(m);
+        });
+
+        list.innerHTML = Object.entries(groups).map(([cat, group]) => `
+            <div class="manual-sidebar-group">
+                <div class="manual-sidebar-cat">${group.icon} ${cat}</div>
+                ${group.items.map(m => `
+                    <div class="manual-sidebar-item" onclick="openManualPopup('${encodeURIComponent(m.filename)}')">
+                        ${escapeHtml(m.title)}
+                    </div>
+                `).join('')}
+            </div>
+        `).join('');
+    } catch (e) {
+        list.innerHTML = '<div class="memo-empty">불러오기 실패</div>';
+    }
+}
+
+// 전체 매뉴얼 팝업 (사이드바 "전체보기" 클릭 시)
+async function openManualFullPopup() {
+    const old = document.getElementById('manualFullPopupOverlay');
+    if (old) old.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'manualFullPopupOverlay';
+    overlay.className = 'memo-full-popup-overlay';
+    overlay.onclick = (e) => { if (e.target === overlay) closeManualFullPopup(); };
+
+    overlay.innerHTML = `
+        <div class="memo-full-popup">
+            <div class="mfp-header">
+                <div class="mfp-header-left">
+                    <h3>📖 업무 매뉴얼</h3>
+                    <span class="mfp-total" id="manualTotal"></span>
+                </div>
+                <button class="mfp-close" onclick="closeManualFullPopup()">✕</button>
+            </div>
+            <div style="padding:12px 24px;border-bottom:1px solid #f0f0f0;">
+                <input type="text" id="manualSearchInput" class="mfp-input" placeholder="매뉴얼 검색... (예: 배차, 주문, 디자인)"
+                    oninput="searchManualFullPopup(this.value)" />
+            </div>
+            <div class="mfp-body" id="manualFullBody">
+                <div class="mfp-loading">불러오는 중...</div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+    document.addEventListener('keydown', manualFullPopupEscHandler);
+    await renderManualFullPopup();
+}
+
+function closeManualFullPopup() {
+    const overlay = document.getElementById('manualFullPopupOverlay');
+    if (overlay) {
+        overlay.classList.add('mfp-exit');
+        setTimeout(() => overlay.remove(), 250);
+    }
+    document.removeEventListener('keydown', manualFullPopupEscHandler);
+}
+
+function manualFullPopupEscHandler(e) {
+    if (e.key === 'Escape') closeManualFullPopup();
+}
+
+let manualSearchTimer = null;
+function searchManualFullPopup(query) {
+    clearTimeout(manualSearchTimer);
+    manualSearchTimer = setTimeout(() => renderManualFullPopup(query.trim()), 300);
+}
+
+async function renderManualFullPopup(searchQuery = '') {
+    const body = document.getElementById('manualFullBody');
+    const totalBadge = document.getElementById('manualTotal');
+    if (!body) return;
+
+    try {
+        let manuals;
+        if (searchQuery) {
+            const res = await fetch(`/api/manuals/search?q=${encodeURIComponent(searchQuery)}`);
+            const data = await res.json();
+            manuals = (data.results || []).map(r => ({ ...r, filename: r.filename }));
+        } else {
+            const res = await fetch('/api/manuals');
+            const data = await res.json();
+            manuals = data.manuals || [];
+        }
+
+        totalBadge.textContent = `${manuals.length}건`;
+
+        if (manuals.length === 0) {
+            body.innerHTML = `<div class="mfp-empty">📭 ${searchQuery ? `"${escapeHtml(searchQuery)}" 관련 매뉴얼이 없습니다` : '매뉴얼이 없습니다'}</div>`;
+            return;
+        }
+
+        // 카테고리별 그룹
+        const groups = {};
+        manuals.forEach(m => {
+            const cat = m.category || '기타';
+            if (!groups[cat]) groups[cat] = { icon: m.icon || '📄', items: [] };
+            groups[cat].items.push(m);
+        });
+
+        body.innerHTML = Object.entries(groups).map(([cat, group]) => `
+            <div style="margin-bottom:16px;">
+                <div style="font-size:13px;font-weight:700;color:#555;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                    ${group.icon} ${cat} <span style="color:#aaa;font-weight:400;">(${group.items.length})</span>
+                </div>
+                ${group.items.map(m => `
+                    <div class="mfp-card" onclick="openManualPopup('${encodeURIComponent(m.filename)}');closeManualFullPopup();">
+                        <div class="mfp-card-content" style="font-weight:600;">${escapeHtml(m.title)}</div>
+                        ${m.snippet ? `<div class="mfp-card-date">${escapeHtml(m.snippet)}</div>` : ''}
+                    </div>
+                `).join('')}
+            </div>
+        `).join('');
+    } catch (e) {
+        body.innerHTML = '<div class="mfp-empty">❌ 불러오기 실패</div>';
+    }
+}
+
+// 페이지 로드 시 사이드바 매뉴얼 로드
+document.addEventListener('DOMContentLoaded', () => {
+    loadManualSidebar();
+});
