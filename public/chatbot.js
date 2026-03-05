@@ -795,10 +795,13 @@ async function loadMemoArchive() {
             const tagHtml = renderTagBadges(tags);
             const borderColor = tags.length > 0 ? tags[0].color : null;
             const borderStyle = borderColor ? `style="--author-color:${borderColor}"` : '';
+            const truncatedContent = cleanContent.length > 20 ? cleanContent.substring(0, 20) + '...' : cleanContent;
+            const hasImage = memo.imageUrl ? true : false;
 
             return `<div class="memo-archive-item ${pinClass} ${tags.length > 0 ? 'has-author' : ''}" data-id="${memo.id}" ${borderStyle} onclick="openMemoPopup('${memo.id}')">
                 ${tagHtml ? `<div class="memo-tag-row">${tagHtml}</div>` : ''}
-                <div class="memo-item-content">${pinIcon}${escapeHtml(cleanContent)}</div>
+                ${hasImage ? `<div class="memo-img-inline"><img src="${memo.imageUrl}" alt="메모 이미지" loading="lazy" /></div>` : ''}
+                <div class="memo-item-content">${pinIcon}${escapeHtml(hasImage && !cleanContent ? '📷 이미지 메모' : truncatedContent)}</div>
                 <div class="memo-item-meta">
                     <span>${dateStr}</span>
                     <span class="memo-item-actions">
@@ -835,6 +838,7 @@ async function openMemoPopup(memoId) {
         overlay.className = 'memo-popup-overlay';
         overlay.onclick = (e) => { if (e.target === overlay) closeMemoPopup(); };
 
+        const hasImg = memo.imageUrl ? true : false;
         overlay.innerHTML = `
             <div class="memo-popup">
                 <div class="memo-popup-header">
@@ -843,6 +847,7 @@ async function openMemoPopup(memoId) {
                 </div>
                 <div class="memo-popup-body">
                     ${tagHtml ? `<div class="memo-popup-tags">${tagHtml}</div>` : ''}
+                    ${hasImg ? `<div class="memo-popup-image"><img src="${memo.imageUrl}" alt="메모 이미지" onclick="window.open(this.src,'_blank')" title="클릭하여 원본 보기" /></div>` : ''}
                     <div class="memo-popup-content">${escapeHtml(cleanContent)}</div>
                     <div class="memo-popup-date">📅 ${fullDate}</div>
                     <div class="memo-popup-status">
@@ -961,23 +966,28 @@ async function handleMemoCommand(message) {
 }
 
 // 사이드바에서 메모 추가
+let pendingMemoImage = null; // 체부할 이미지 base64
+
 async function saveMemoFromSidebar() {
     const input = document.getElementById('memoQuickInput');
     const content = input.value.trim();
-    if (!content) return;
+    if (!content && !pendingMemoImage) return;
     input.value = '';
     const { tags } = parseMemoTags(content);
     const authorName = tags.length > 0 ? tags.map(t => t.name).join(', ') : '직원';
     try {
+        const body = { content, author: authorName };
+        if (pendingMemoImage) body.imageUrl = pendingMemoImage;
         const res = await fetch('/api/memos', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content, author: authorName })
+            body: JSON.stringify(body)
         });
         const data = await res.json();
         if (data.success) {
             const tagInfo = tags.length > 0 ? ` [${tags.map(t => t.emoji + t.name).join(', ')}]` : '';
             showMemoToast(`메모 저장${tagInfo}`, 'success');
+            removeMemoImage();
             await loadMemoArchive();
         }
     } catch (e) {
@@ -985,7 +995,63 @@ async function saveMemoFromSidebar() {
     }
 }
 
-// 메모 삭제
+// 이미지 붙여넣기 (Ctrl+V)
+function handleMemoPaste(e) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+        if (item.type.startsWith('image/')) {
+            e.preventDefault();
+            const file = item.getAsFile();
+            if (file) processsMemoImage(file);
+            return;
+        }
+    }
+}
+
+// 파일 선택
+function handleMemoImageSelect(input) {
+    const file = input.files?.[0];
+    if (file) processsMemoImage(file);
+    input.value = '';
+}
+
+// 이미지 처리 (base64 변환 + 리사이즈)
+function processsMemoImage(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+            // 리사이즈 (최대 400px)
+            const canvas = document.createElement('canvas');
+            const maxSize = 400;
+            let w = img.width, h = img.height;
+            if (w > maxSize || h > maxSize) {
+                if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+                else { w = Math.round(w * maxSize / h); h = maxSize; }
+            }
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            pendingMemoImage = canvas.toDataURL('image/webp', 0.7);
+            // 미리보기 표시
+            const preview = document.getElementById('memoImgPreview');
+            const thumb = document.getElementById('memoImgThumb');
+            thumb.src = pendingMemoImage;
+            preview.style.display = 'flex';
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+// 이미지 제거
+function removeMemoImage() {
+    pendingMemoImage = null;
+    const preview = document.getElementById('memoImgPreview');
+    if (preview) preview.style.display = 'none';
+}
 async function deleteMemoById(id) {
     try {
         await fetch(`/api/memos/${id}`, { method: 'DELETE' });
