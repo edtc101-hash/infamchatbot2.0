@@ -1208,6 +1208,7 @@ async function renderMemoFullPopup() {
             const tagHtml = renderTagBadges(tags);
             const pinIcon = memo.pinned ? '📌 ' : '';
             const pinClass = memo.pinned ? 'pinned' : '';
+            const hasImage = memo.imageUrl ? true : false;
 
             return `<div class="mfp-card ${pinClass}" onclick="openMemoPopup('${memo.id}');closeMemoFullPopup();">
                 <div class="mfp-card-top">
@@ -1217,8 +1218,13 @@ async function renderMemoFullPopup() {
                         <button onclick="event.stopPropagation();if(confirm('이 메모를 삭제하시겠습니까?')){deleteMemoById('${memo.id}').then(()=>renderMemoFullPopup())}" title="삭제">🗑️</button>
                     </div>
                 </div>
-                <div class="mfp-card-content">${pinIcon}${escapeHtml(cleanContent)}</div>
-                <div class="mfp-card-date">${dateStr}</div>
+                <div class="mfp-card-body">
+                    <div class="mfp-card-text">
+                        <div class="mfp-card-content">${pinIcon}${escapeHtml(hasImage && !cleanContent ? '📷 이미지 메모' : cleanContent)}</div>
+                        <div class="mfp-card-date">${dateStr}</div>
+                    </div>
+                    ${hasImage ? `<div class="mfp-card-img"><img src="${memo.imageUrl}" alt="" loading="lazy" /></div>` : ''}
+                </div>
             </div>`;
         }).join('');
 

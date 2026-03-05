@@ -1996,6 +1996,184 @@ app.get('/api/rag-info', (req, res) => {
     });
 });
 
+// ========================
+// 카카오톡 채널 챗봇 — 카카오 i 오픈빌더 스킬 API
+// ========================
+app.post('/api/kakao/skill', async (req, res) => {
+    try {
+        const { userRequest } = req.body;
+        if (!userRequest || !userRequest.utterance) {
+            return res.json(kakaoSimpleText('메시지를 입력해주세요.'));
+        }
+
+        const message = userRequest.utterance.trim();
+        const userId = userRequest.user?.id || 'kakao_' + Date.now();
+
+        console.log(`💬 카카오톡 메시지: "${message.substring(0, 50)}..." (사용자: ${userId.substring(0, 10)}...)`);
+
+        // 세션 관리 (카카오 사용자별)
+        const session = getSession('kakao_' + userId);
+        session.messageCount++;
+
+        // 1. FAQ 검색
+        const FAQ_DATA = loadFAQData().filter(f => f.enabled !== false);
+        const relevantFAQs = findRelevantFAQs(message, FAQ_DATA);
+
+        // 2. 제품 검색
+        const PRODUCT_DATA = loadProductData();
+        const relevantProducts = findRelevantProducts(message, PRODUCT_DATA);
+
+        // 3. ERP 재고
+        const erpInventory = lookupERPInventory(message);
+
+        // 4. RAG 벡터 검색
+        let ragResults = [];
+        try { ragResults = await ragSearch(message, 5); } catch (e) { }
+
+        // 5. 관리자 수정 답변 직접 매칭
+        const LEARNED_DATA = loadLearnedData();
+        const correctionMatch = findCorrectionMatch(message, LEARNED_DATA);
+        if (correctionMatch) {
+            console.log(`✏️ [카카오] 관리자 수정 답변 반환`);
+            return res.json(kakaoSimpleText(correctionMatch.answer));
+        }
+
+        // 6. 캐시 확인
+        const cached = getFromCache(message);
+        if (cached) {
+            return res.json(kakaoSimpleText(cached.response));
+        }
+
+        // 7. AI 답변 생성
+        const relevantLearned = findRelevantLearned(message, LEARNED_DATA);
+        const intent = classifyIntent(message, relevantFAQs, relevantProducts);
+
+        let knowledgeContext = '';
+        const contextBlocks = [];
+        if (relevantFAQs.length > 0) {
+            contextBlocks.push('[FAQ 정보]\n' + relevantFAQs.slice(0, 3).map(f => `Q: ${f.question}\nA: ${f.answer}`).join('\n\n'));
+        }
+        if (ragResults.length > 0) {
+            contextBlocks.push('[RAG 검색 결과]\n' + ragResults.slice(0, 3).map(r => r.content).join('\n\n'));
+        }
+        if (relevantLearned.length > 0) {
+            contextBlocks.push('[학습된 지식]\n' + relevantLearned.slice(0, 3).map(l => `Q: ${l.question}\nA: ${l.answer}`).join('\n\n'));
+        }
+        if (relevantProducts.length > 0) {
+            contextBlocks.push('[제품 정보]\n' + relevantProducts.slice(0, 3).map(p => `${p.name}: ${p.description || ''}`).join('\n'));
+        }
+        if (erpInventory.length > 0) {
+            contextBlocks.push('[ERP 재고]\n' + erpInventory.map(i => `${i.name} (${i.color || '-'}) 재고: ${i.qty}장`).join('\n'));
+        }
+        if (contextBlocks.length > 0) {
+            knowledgeContext = '\n\n=== 참고 자료 ===\n' + contextBlocks.join('\n\n');
+        }
+
+        const systemInstruction = `너는 인팸(InteriorFamily) 벽장재 전문 회사의 친절한 CS 상담원이야.
+카카오톡으로 고객과 1:1 대화하는 중이야. 마치 직원이 직접 대화하는 것처럼 자연스럽고 친근하게 답변해.
+
+핵심 규칙:
+1. "~해요", "~드릴게요" 등 존댓말 사용
+2. 인사말 넣지 마. 바로 본론.
+3. 이모지 적절히 사용 (과하지 않게)
+4. 정확한 정보 위주. 모르면 "확인 후 다시 안내드릴게요" 라고 해
+5. 답변은 카카오톡 특성상 300자 이내로 짧고 핵심적으로
+6. 마크다운(**굵게** 등) 사용하지 마. 카카오톡에서는 안 보여
+7. URL이나 링크는 포함하지 마
+
+${knowledgeContext}`;
+
+        const userMessage = `고객 질문: ${message}`;
+
+        let aiResponse = null;
+        const modelsToTry = [
+            { m: model, name: 'gemini-2.5-flash' },
+            { m: proModel, name: 'gemini-2.5-pro' }
+        ];
+
+        for (const { m, name } of modelsToTry) {
+            try {
+                const chat = m.startChat({
+                    systemInstruction: { parts: [{ text: systemInstruction }] },
+                    history: session.history.slice(-4).map(h => ({
+                        role: h.role, parts: [{ text: h.content }]
+                    })),
+                    generationConfig: {
+                        maxOutputTokens: 1024,
+                        temperature: 0.2,
+                        topP: 0.85
+                    }
+                });
+                const result = await chat.sendMessage(userMessage);
+                aiResponse = result.response.text();
+                console.log(`✅ [카카오] AI 응답 (${name})`);
+                break;
+            } catch (err) {
+                console.log(`⚠️ [카카오] ${name} 실패:`, err.message);
+                if (err.status === 429) await new Promise(r => setTimeout(r, 1000));
+            }
+        }
+
+        if (!aiResponse) {
+            return res.json(kakaoSimpleText('죄송합니다 😥 지금 시스템이 바빠서 잠시 후 다시 문의해주세요!'));
+        }
+
+        // 마크다운 제거 (카카오톡에서 안 보이므로)
+        aiResponse = aiResponse
+            .replace(/\*\*(.*?)\*\*/g, '$1')
+            .replace(/\*(.*?)\*/g, '$1')
+            .replace(/#{1,6}\s/g, '')
+            .replace(/---SUGGESTED---[\s\S]*?---END---/g, '')
+            .trim();
+
+        // 300자 초과 시 자르기
+        if (aiResponse.length > 500) {
+            aiResponse = aiResponse.substring(0, 497) + '...';
+        }
+
+        // 세션 히스토리 저장
+        session.history.push({ role: 'user', content: message });
+        session.history.push({ role: 'model', content: aiResponse });
+        setCache(message, aiResponse, []);
+
+        // 빠른 응답 버튼 (자주 묻는 질문)
+        const quickReplies = [
+            { label: '배송 안내', message: '배송은 어떻게 되나요?' },
+            { label: '시공 방법', message: '시공 방법을 알려주세요' },
+            { label: '샘플 요청', message: '샘플을 받을 수 있나요?' }
+        ].map(q => ({
+            messageText: q.message,
+            action: 'message',
+            label: q.label
+        }));
+
+        console.log(`💬 [카카오] 답변 완료: "${aiResponse.substring(0, 40)}..."`);
+
+        res.json({
+            version: '2.0',
+            template: {
+                outputs: [{
+                    simpleText: { text: aiResponse }
+                }],
+                quickReplies
+            }
+        });
+    } catch (e) {
+        console.error('❌ [카카오] 스킬 오류:', e.message);
+        res.json(kakaoSimpleText('죄송합니다, 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'));
+    }
+});
+
+// 카카오 간단 텍스트 응답 헬퍼
+function kakaoSimpleText(text) {
+    return {
+        version: '2.0',
+        template: {
+            outputs: [{ simpleText: { text } }]
+        }
+    };
+}
+
 // 세션 정리 (1시간 활동 없는 세션 제거)
 setInterval(() => {
     const cutoff = Date.now() - 3600000;
