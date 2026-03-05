@@ -1637,7 +1637,8 @@ app.get('/api/memos', async (req, res) => {
                 content: m.content,
                 author: m.author,
                 createdAt: m.created_at,
-                pinned: m.pinned
+                pinned: m.pinned,
+                imageUrl: m.image_url || null
             }));
             return res.json({ success: true, memos, total: memos.length });
         }
@@ -1653,21 +1654,24 @@ app.get('/api/memos', async (req, res) => {
 
 // 메모 추가
 app.post('/api/memos', async (req, res) => {
-    const { content, author } = req.body;
-    if (!content || !content.trim()) return res.status(400).json({ error: '메모 내용을 입력해주세요.' });
+    const { content, author, imageUrl } = req.body;
+    if ((!content || !content.trim()) && !imageUrl) return res.status(400).json({ error: '메모 내용을 입력해주세요.' });
 
     const memo = {
         id: 'memo_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-        content: content.trim(),
+        content: (content || '').trim(),
         author: author || '익명',
-        pinned: false
+        pinned: false,
+        imageUrl: imageUrl || null
     };
 
     try {
         if (supabase) {
+            const insertData = { id: memo.id, content: memo.content, author: memo.author, pinned: false };
+            if (imageUrl) insertData.image_url = imageUrl;
             const { data, error } = await supabase
                 .from('memos')
-                .insert({ id: memo.id, content: memo.content, author: memo.author, pinned: false })
+                .insert(insertData)
                 .select()
                 .single();
             if (error) throw error;
@@ -1850,6 +1854,108 @@ app.get('/api/manuals/:filename', (req, res) => {
     } catch (e) {
         console.error('매뉴얼 조회 오류:', e.message);
         res.status(500).json({ error: '매뉴얼 로드 실패' });
+    }
+});
+
+// AI 매뉴얼 요약 캐시 (메모리)
+const manualSummaryCache = {};
+
+// 매뉴얼 AI 요약
+app.get('/api/manuals/:filename/summary', async (req, res) => {
+    try {
+        const filename = decodeURIComponent(req.params.filename);
+        const filePath = path.join(MANUAL_DIR, filename);
+        if (!filePath.startsWith(MANUAL_DIR)) return res.status(403).json({ error: '접근 거부' });
+        if (!fs.existsSync(filePath)) return res.status(404).json({ error: '매뉴얼을 찾을 수 없습니다.' });
+
+        // 캐시 확인
+        if (manualSummaryCache[filename]) {
+            return res.json({ success: true, ...manualSummaryCache[filename], cached: true });
+        }
+
+        const content = fs.readFileSync(filePath, 'utf8');
+        const { category, icon } = classifyManual(filename);
+        const title = filename.replace(/\.txt$/, '').replace(/^\d+\.\s*/, '');
+
+        const summaryPrompt = `다음은 회사 내부 업무 매뉴얼입니다. 이것을 가독성 좋게 요약 정리해주세요.
+
+규칙:
+1. 핵심 내용만 간결하게 정리
+2. 단계별 절차가 있으면 번호 매기기 (1. 2. 3.)
+3. 중요한 주의사항은 ⚠️ 로 표시
+4. 핵심 키워드나 수치는 **굵게** 표시
+5. 불필요한 인사말/강의 멘트는 제거
+6. 전체 길이는 원본의 40~60% 수준으로 압축
+7. 마크다운 형식으로 작성
+
+매뉴얼 제목: ${title}
+카테고리: ${category}
+
+원본 내용:
+${content}`;
+
+        const result = await model.generateContent(summaryPrompt);
+        const summary = result.response.text();
+
+        // 캐시 저장
+        manualSummaryCache[filename] = { filename, title, category, icon, summary };
+        res.json({ success: true, filename, title, category, icon, summary, cached: false });
+    } catch (e) {
+        console.error('매뉴얼 요약 오류:', e.message);
+        res.status(500).json({ error: '요약 생성 실패: ' + e.message });
+    }
+});
+
+// @직원 키워드 검색 시 AI 요약 답변
+app.post('/api/manuals/ai-answer', async (req, res) => {
+    const { query } = req.body;
+    if (!query || !query.trim()) return res.status(400).json({ error: '검색어를 입력해주세요.' });
+
+    try {
+        // 검색어로 매뉴얼 찾기
+        const files = fs.readdirSync(MANUAL_DIR).filter(f => f.endsWith('.txt'));
+        const matches = [];
+        for (const f of files) {
+            const title = f.replace(/\.txt$/, '').replace(/^\d+\.\s*/, '');
+            const content = fs.readFileSync(path.join(MANUAL_DIR, f), 'utf8');
+            if (title.toLowerCase().includes(query.toLowerCase()) || content.toLowerCase().includes(query.toLowerCase())) {
+                matches.push({ filename: f, title, content });
+            }
+        }
+
+        if (matches.length === 0) {
+            return res.json({ success: true, answer: null, query });
+        }
+
+        // 상위 3개 매뉴얼만 사용 (토큰 절약)
+        const topMatches = matches.slice(0, 3);
+        const combinedContent = topMatches.map(m => `[${m.title}]\n${m.content}`).join('\n\n---\n\n');
+
+        const answerPrompt = `사용자가 "${query}" 관련 업무 매뉴얼을 물어봤어. 아래 매뉴얼 내용을 기반으로 핵심을 요약해서 답변해줘.
+
+규칙:
+1. 핵심 절차를 단계별로 정리 (1. 2. 3.)
+2. 중요한 주의사항은 ⚠️ 로 표시
+3. 핵심 수치/이름은 **굵게**
+4. 불필요한 인사말 제거, 핵심만 바로 답변
+5. 마크다운 형식으로 작성
+6. 매뉴얼 제목을 출처로 끝에 표시
+
+매뉴얼 내용:
+${combinedContent}`;
+
+        const result = await model.generateContent(answerPrompt);
+        const answer = result.response.text();
+
+        res.json({
+            success: true,
+            answer,
+            query,
+            sources: topMatches.map(m => ({ filename: m.filename, title: m.title }))
+        });
+    } catch (e) {
+        console.error('AI 매뉴얼 답변 오류:', e.message);
+        res.status(500).json({ error: 'AI 답변 생성 실패' });
     }
 });
 

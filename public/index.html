@@ -428,9 +428,17 @@
           <div class="memo-empty">메모가 없습니다</div>
         </div>
         <div class="memo-add-bar">
+          <button class="memo-img-btn" onclick="document.getElementById('memoImageInput').click()"
+            title="이미지 첨부 (또는 Ctrl+V로 붙여넣기)">📎</button>
+          <input type="file" id="memoImageInput" accept="image/*" style="display:none"
+            onchange="handleMemoImageSelect(this)" />
           <input type="text" id="memoQuickInput" class="memo-quick-input" placeholder="메모 입력 후 Enter..."
-            onkeydown="if(event.key==='Enter'){saveMemoFromSidebar();}" />
+            onkeydown="if(event.key==='Enter'){saveMemoFromSidebar();}" onpaste="handleMemoPaste(event)" />
           <button class="memo-add-btn" onclick="saveMemoFromSidebar()" title="메모 추가">+</button>
+        </div>
+        <div class="memo-img-preview" id="memoImgPreview" style="display:none;">
+          <img id="memoImgThumb" src="" alt="미리보기" />
+          <button class="memo-img-remove" onclick="removeMemoImage()">✕</button>
         </div>
       </div>
 

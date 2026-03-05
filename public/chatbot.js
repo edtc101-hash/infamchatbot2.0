@@ -1201,29 +1201,33 @@ async function handleManualCommand(message) {
     try {
         let data;
         if (query) {
-            // 키워드 검색
-            const res = await fetch(`/api/manuals/search?q=${encodeURIComponent(query)}`);
-            data = await res.json();
-            if (!data.results || data.results.length === 0) {
+            // AI 요약 답변 요청
+            const loadingMsg = addMessage('<div class="manual-chat-results"><div class="manual-chat-header">📖 매뉴얼 검색 중... <span class="manual-loading-dot">●●●</span></div></div>', 'bot', true);
+
+            const res = await fetch('/api/manuals/ai-answer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query })
+            });
+            const aiData = await res.json();
+
+            // 로딩 메시지 제거
+            if (loadingMsg) loadingMsg.remove();
+
+            if (!aiData.success || !aiData.answer) {
                 addMessage(`📖 "${query}" 관련 매뉴얼을 찾을 수 없습니다.\n\n전체 목록을 보려면 \`@직원\`만 입력해주세요.`, 'bot');
                 return;
             }
-            // 검색 결과 카드
-            const cards = data.results.map(m =>
-                `<div class="manual-chat-card" onclick="openManualPopup('${encodeURIComponent(m.filename)}')">
-                    <div class="manual-chat-card-header">
-                        <span class="manual-chat-icon">${m.icon}</span>
-                        <span class="manual-chat-title">${escapeHtml(m.title)}</span>
-                        <span class="manual-chat-cat">${m.category}</span>
-                    </div>
-                    ${m.snippet ? `<div class="manual-chat-snippet">${escapeHtml(m.snippet)}</div>` : ''}
-                </div>`
-            ).join('');
+
+            // AI 요약 답변 + 출처 표시
+            const sourcesHtml = aiData.sources ? aiData.sources.map(s =>
+                `<span class="manual-source-tag" onclick="openManualPopup('${encodeURIComponent(s.filename)}')">${escapeHtml(s.title)}</span>`
+            ).join('') : '';
 
             const botMsg = `<div class="manual-chat-results">
-                <div class="manual-chat-header">📖 "${escapeHtml(query)}" 검색 결과 <strong>${data.results.length}건</strong></div>
-                ${cards}
-                <div class="manual-chat-tip">카드를 클릭하면 전체 내용을 볼 수 있습니다</div>
+                <div class="manual-chat-header">📖 "${escapeHtml(query)}" 업무 매뉴얼 요약</div>
+                <div class="manual-ai-answer">${aiData.answer}</div>
+                ${sourcesHtml ? `<div class="manual-sources">📂 출처: ${sourcesHtml}</div>` : ''}
             </div>`;
             addMessage(botMsg, 'bot', true);
         } else {
@@ -1270,7 +1274,6 @@ async function handleManualCommand(message) {
 // 매뉴얼 상세 팝업
 async function openManualPopup(encodedFilename) {
     const filename = decodeURIComponent(encodedFilename);
-    // 기존 팝업 제거
     const old = document.getElementById('manualPopupOverlay');
     if (old) old.remove();
 
@@ -1285,13 +1288,18 @@ async function openManualPopup(encodedFilename) {
                 <h3>📖 로딩 중...</h3>
                 <button class="manual-popup-close" onclick="closeManualPopup()">✕</button>
             </div>
-            <div class="manual-popup-body"><div class="mfp-loading">불러오는 중...</div></div>
+            <div class="manual-popup-tabs">
+                <button class="manual-tab active" data-tab="summary" onclick="switchManualTab('summary')">📋 요약</button>
+                <button class="manual-tab" data-tab="original" onclick="switchManualTab('original')">📄 원문</button>
+            </div>
+            <div class="manual-popup-body"><div class="mfp-loading">AI 요약 생성 중... ✨</div></div>
         </div>
     `;
 
     document.body.appendChild(overlay);
     document.addEventListener('keydown', manualPopupEscHandler);
 
+    // 원본 먼저 로드해서 저장
     try {
         const res = await fetch(`/api/manuals/${encodedFilename}`);
         const data = await res.json();
@@ -1301,16 +1309,39 @@ async function openManualPopup(encodedFilename) {
         header.textContent = `${data.icon} ${data.title}`;
 
         const body = overlay.querySelector('.manual-popup-body');
-        // 내용을 단락으로 분리
         const paragraphs = data.content.split(/\r?\n/).filter(l => l.trim()).map(l => `<p>${escapeHtml(l)}</p>`).join('');
 
-        body.innerHTML = `
+        // 원문 저장 (탭 전환용)
+        body.dataset.original = `
             <div class="manual-popup-meta">
                 <span class="manual-popup-cat">${data.icon} ${data.category}</span>
                 <span class="manual-popup-file">📁 ${data.filename}</span>
             </div>
             <div class="manual-popup-content">${paragraphs}</div>
         `;
+
+        // AI 요약 로드
+        try {
+            const sumRes = await fetch(`/api/manuals/${encodedFilename}/summary`);
+            const sumData = await sumRes.json();
+            if (sumData.success && sumData.summary) {
+                body.dataset.summary = `
+                    <div class="manual-popup-meta">
+                        <span class="manual-popup-cat">${sumData.icon} ${sumData.category}</span>
+                        <span class="manual-popup-file">✨ AI 요약${sumData.cached ? ' (캐시)' : ''}</span>
+                    </div>
+                    <div class="manual-popup-content manual-ai-summary">${sumData.summary}</div>
+                `;
+                body.innerHTML = body.dataset.summary;
+            } else {
+                throw new Error('요약 실패');
+            }
+        } catch {
+            // 요약 실패 시 원문 표시
+            body.innerHTML = body.dataset.original;
+            overlay.querySelector('.manual-tab[data-tab="original"]').classList.add('active');
+            overlay.querySelector('.manual-tab[data-tab="summary"]').classList.remove('active');
+        }
     } catch (e) {
         const body = overlay.querySelector('.manual-popup-body');
         body.innerHTML = `<div class="mfp-empty">❌ 로드 실패: ${e.message}</div>`;
@@ -1328,6 +1359,20 @@ function closeManualPopup() {
 
 function manualPopupEscHandler(e) {
     if (e.key === 'Escape') closeManualPopup();
+}
+
+function switchManualTab(tab) {
+    const overlay = document.getElementById('manualPopupOverlay');
+    if (!overlay) return;
+    const body = overlay.querySelector('.manual-popup-body');
+    const tabs = overlay.querySelectorAll('.manual-tab');
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+
+    if (tab === 'summary' && body.dataset.summary) {
+        body.innerHTML = body.dataset.summary;
+    } else if (tab === 'original' && body.dataset.original) {
+        body.innerHTML = body.dataset.original;
+    }
 }
 
 // 사이드바 매뉴얼 목록 로드
