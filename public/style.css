@@ -2829,20 +2829,25 @@ textarea::-webkit-scrollbar {
   padding: 16px 24px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .mfp-body::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
+}
+
+.mfp-body::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border-radius: 8px;
 }
 
 .mfp-body::-webkit-scrollbar-thumb {
-  background: #ddd;
-  border-radius: 6px;
+  background: #c0c0c0;
+  border-radius: 8px;
 }
 
 .mfp-body::-webkit-scrollbar-thumb:hover {
-  background: #ccc;
+  background: #aaa;
 }
 
 .mfp-card {
