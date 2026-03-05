@@ -36,8 +36,8 @@ if (!GEMINI_API_KEY) {
     process.exit(1);
 }
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-3.1-pro-preview' }); // 채팅/학습용 (최고 성능 모델)
-const flashModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' }); // 빠른 분석용 (폴백)
+const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' }); // 채팅 기본 (빠른 응답)
+const proModel = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' }); // 복잡한 분석용 (폴백)
 const visionModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' }); // 시각 분석용
 
 // Nano Banana 2 (Gemini 3.1 Flash Image — 최신 이미지 생성)
@@ -706,7 +706,7 @@ app.post('/api/chat', async (req, res) => {
     // 3. AI 호출 (대화 히스토리 포함)
     const historyContext = session.history.length > 0
         ? `\n\n[이전 대화 맥락]\n` +
-        session.history.slice(-10).map(h => `${h.role === 'user' ? '고객' : '상담사'}: ${h.content.substring(0, 150)}`).join('\n')
+        session.history.slice(-6).map(h => `${h.role === 'user' ? '고객' : '상담사'}: ${h.content.substring(0, 120)}`).join('\n')
         : '';
 
     // 관리자 학습 데이터 (최우선)
@@ -781,19 +781,19 @@ ${contextSection}${historyContext}
 
     let aiResponse = null;
     const modelsToTry = [
-        { m: model, name: 'gemini-2.5-pro' },
-        { m: flashModel, name: 'gemini-2.5-flash' }
+        { m: model, name: 'gemini-2.5-flash' },
+        { m: proModel, name: 'gemini-2.5-pro' }
     ];
 
     for (const { m, name } of modelsToTry) {
         try {
             const chat = m.startChat({
                 systemInstruction: { parts: [{ text: systemInstruction }] },
-                history: session.history.slice(-10).map(h => ({
+                history: session.history.slice(-6).map(h => ({
                     role: h.role, parts: [{ text: h.content }]
                 })),
                 generationConfig: {
-                    maxOutputTokens: 2500,
+                    maxOutputTokens: 1800,
                     temperature: 0.1,
                     topP: 0.85,
                     topK: 20
@@ -807,7 +807,7 @@ ${contextSection}${historyContext}
             const isQuota = err.status === 429;
             const isNotFound = err.status === 404;
             console.log(`⚠️ AI ${name} 실패 (${err.status}):`, isQuota ? '할당량 초과' : isNotFound ? '모델 없음' : err.message);
-            if (isQuota) await new Promise(r => setTimeout(r, 2000));
+            if (isQuota) await new Promise(r => setTimeout(r, 1000));
         }
     }
 
