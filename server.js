@@ -798,14 +798,31 @@ ${contextSection}${historyContext}
                     role: h.role, parts: [{ text: h.content }]
                 })),
                 generationConfig: {
-                    maxOutputTokens: 1800,
-                    temperature: 0.1,
+                    maxOutputTokens: 4096,
+                    temperature: 0.15,
                     topP: 0.85,
                     topK: 20
                 }
             });
             const result = await chat.sendMessage(userMessage);
             aiResponse = result.response.text();
+
+            // 응답이 잘렸는지 확인 (finishReason: MAX_TOKENS)
+            const candidate = result.response.candidates?.[0];
+            if (candidate?.finishReason === 'MAX_TOKENS' || candidate?.finishReason === 'RECITATION') {
+                console.log(`⚠️ AI 응답이 잘림 (${candidate.finishReason}), 이어서 생성 시도...`);
+                try {
+                    const contResult = await chat.sendMessage('위 답변이 중간에 끊겼으니 끊긴 부분부터 이어서 완성해줘. 중복 없이 자연스럽게 이어가.');
+                    const contText = contResult.response.text();
+                    if (contText && contText.length > 20) {
+                        aiResponse += '\n' + contText;
+                        console.log('✅ 이어서 생성 완료');
+                    }
+                } catch (contErr) {
+                    console.log('⚠️ 이어쓰기 실패:', contErr.message);
+                }
+            }
+
             console.log(`✅ AI 응답 성공 (모델: ${name}, 의도: ${intent.id})`);
             break;
         } catch (err) {
