@@ -2022,6 +2022,21 @@ textarea::-webkit-scrollbar {
   padding-left: 20px;
 }
 
+/* ─── 메모 버블 스타일 ─── */
+.memo-bubble {
+  border-left: 3px solid var(--neon, #00e676) !important;
+  background: #f0fdf4 !important;
+}
+
+.memo-bubble blockquote {
+  border-left: 3px solid #00e676;
+  background: rgba(0, 230, 118, 0.08);
+  padding: 8px 12px;
+  margin: 8px 0;
+  border-radius: 6px;
+  font-style: normal;
+}
+
 @keyframes memoSlideDown {
   from {
     opacity: 0;

@@ -1571,6 +1571,67 @@ app.delete('/api/admin/learned/:id', adminAuth, (req, res) => {
 });
 
 // ========================
+// 메모 기능 (@기록)
+// ========================
+const MEMO_FILE = path.join(__dirname, 'memo-data.json');
+
+function loadMemos() {
+    try {
+        if (fs.existsSync(MEMO_FILE)) {
+            return JSON.parse(fs.readFileSync(MEMO_FILE, 'utf8'));
+        }
+    } catch (e) { console.error('메모 로드 오류:', e); }
+    return [];
+}
+
+function saveMemos(data) {
+    fs.writeFileSync(MEMO_FILE, JSON.stringify(data, null, 2), 'utf8');
+}
+
+// 메모 목록 조회
+app.get('/api/memos', (req, res) => {
+    const memos = loadMemos();
+    res.json({ success: true, memos, total: memos.length });
+});
+
+// 메모 추가
+app.post('/api/memos', (req, res) => {
+    const { content, author } = req.body;
+    if (!content || !content.trim()) return res.status(400).json({ error: '메모 내용을 입력해주세요.' });
+    const memos = loadMemos();
+    const memo = {
+        id: 'memo_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+        content: content.trim(),
+        author: author || '익명',
+        createdAt: new Date().toISOString(),
+        pinned: false
+    };
+    memos.unshift(memo);
+    saveMemos(memos);
+    res.json({ success: true, memo, total: memos.length });
+});
+
+// 메모 삭제
+app.delete('/api/memos/:id', (req, res) => {
+    const memos = loadMemos();
+    const idx = memos.findIndex(m => m.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: '메모를 찾을 수 없습니다.' });
+    const removed = memos.splice(idx, 1)[0];
+    saveMemos(memos);
+    res.json({ success: true, removed });
+});
+
+// 메모 핀 토글
+app.patch('/api/memos/:id/pin', (req, res) => {
+    const memos = loadMemos();
+    const memo = memos.find(m => m.id === req.params.id);
+    if (!memo) return res.status(404).json({ error: '메모를 찾을 수 없습니다.' });
+    memo.pinned = !memo.pinned;
+    saveMemos(memos);
+    res.json({ success: true, memo });
+});
+
+// ========================
 // RAG 관리 API
 // ========================
 app.get('/api/admin/rag-status', adminAuth, (req, res) => {
@@ -1925,70 +1986,7 @@ ${contextInfo}
     }
 });
 
-// ========================
-// 콘텐츠 자동화 대시보드 백엔드 자동 실행
-// ========================
-const { spawn } = require('child_process');
-let contentDashboardProcess = null;
 
-function startContentDashboard() {
-    const backendDir = path.resolve(__dirname, '..', '콘텐츠 자동화 대시보드', 'backend');
-
-    if (!fs.existsSync(backendDir)) {
-        console.log('⚠️ 콘텐츠 자동화 대시보드 폴더를 찾을 수 없습니다:', backendDir);
-        return;
-    }
-
-    console.log('🎬 콘텐츠 자동화 대시보드 백엔드 시작 중...');
-
-    contentDashboardProcess = spawn('python', ['-m', 'uvicorn', 'main:app', '--host', '0.0.0.0', '--port', '8000'], {
-        cwd: backendDir,
-        shell: false,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' }
-    });
-
-    contentDashboardProcess.stdout.on('data', (data) => {
-        const msg = data.toString().trim();
-        if (msg) console.log(`  [콘텐츠] ${msg}`);
-    });
-
-    contentDashboardProcess.stderr.on('data', (data) => {
-        const msg = data.toString().trim();
-        if (msg && !msg.includes('INFO:')) console.log(`  [콘텐츠 ERR] ${msg}`);
-        // uvicorn은 INFO를 stderr로 출력
-        if (msg.includes('Uvicorn running') || msg.includes('Started server')) {
-            console.log('✅ 콘텐츠 자동화 대시보드: http://localhost:8000');
-        }
-    });
-
-    contentDashboardProcess.on('error', (err) => {
-        console.log('⚠️ 콘텐츠 대시보드 실행 실패:', err.message);
-        console.log('   → Python/uvicorn이 설치되어 있는지 확인해주세요');
-    });
-
-    contentDashboardProcess.on('exit', (code) => {
-        if (code !== null && code !== 0) {
-            console.log(`⚠️ 콘텐츠 대시보드 종료 (코드: ${code})`);
-        }
-        contentDashboardProcess = null;
-    });
-}
-
-// 서버 종료 시 FastAPI도 함께 종료
-function cleanupContentDashboard() {
-    if (contentDashboardProcess) {
-        console.log('🔒 콘텐츠 대시보드 백엔드 종료...');
-        contentDashboardProcess.kill();
-        contentDashboardProcess = null;
-    }
-}
-
-process.on('exit', () => { cleanupContentDashboard(); });
-process.on('SIGINT', () => { cleanupContentDashboard(); process.exit(); });
-process.on('SIGTERM', () => { cleanupContentDashboard(); process.exit(); });
-
-// (Qwen-Image-Layered 서비스 — 비활성화됨)
 
 // ========================
 // AI 이미지 분석/생성 API (Hugging Face Inference)
@@ -3095,12 +3093,7 @@ const server = app.listen(PORT, async () => {
         console.log(`⚠️ RAG 빌드 스킵: ${ragResult.reason}`);
     }
 
-    // 로컬 환경에서만 자식 서비스 실행 (클라우드에는 Python 서비스 없음)
-    if (!process.env.RENDER) {
-        try { startContentDashboard(); } catch (e) { /* 실행 실패 무시 */ }
-    } else {
-        console.log('☁️ 클라우드 환경 — 자식 서비스(콘텐츠 대시보드/Qwen) 스킵');
-    }
+
 });
 
 // === 포트 충돌(EADDRINUSE) 자동 복구 ===
