@@ -2344,3 +2344,217 @@ textarea::-webkit-scrollbar {
     max-height: 500px;
   }
 }
+
+/* ─── 메모 담당자 태그 ─── */
+.memo-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.memo-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--tag-color, #666);
+  background: color-mix(in srgb, var(--tag-color, #666) 10%, white);
+  border: 1px solid color-mix(in srgb, var(--tag-color, #666) 25%, white);
+  white-space: nowrap;
+}
+
+/* 담당자 있으면 왼쪽 컬러 인디케이터 */
+.memo-archive-item.has-author::before {
+  background: conic-gradient(from var(--memo-angle, 0deg),
+      var(--author-color, #00e676),
+      color-mix(in srgb, var(--author-color, #00e676) 50%, white),
+      var(--author-color, #00e676)) !important;
+}
+
+.memo-archive-item {
+  cursor: pointer;
+}
+
+/* ─── 메모 상세 팝업 ─── */
+.memo-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: popupFadeIn 0.25s ease;
+}
+
+.memo-popup-overlay.memo-popup-exit {
+  animation: popupFadeOut 0.25s ease forwards;
+}
+
+.memo-popup {
+  background: #fff;
+  border-radius: 16px;
+  width: 420px;
+  max-width: 90vw;
+  max-height: 80vh;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: popupSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.memo-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.memo-popup-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #222;
+}
+
+.memo-popup-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #aaa;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+
+.memo-popup-close:hover {
+  background: #f5f5f5;
+  color: #555;
+}
+
+.memo-popup-body {
+  padding: 20px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.memo-popup-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.memo-popup-tags .memo-tag {
+  font-size: 12px;
+  padding: 3px 10px;
+}
+
+.memo-popup-content {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #333;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  border: 1px solid #eee;
+  word-break: break-word;
+}
+
+.memo-popup-date {
+  margin-top: 14px;
+  font-size: 12px;
+  color: #999;
+}
+
+.memo-popup-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #888;
+}
+
+.memo-popup-pin {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.memo-popup-footer {
+  display: flex;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.memo-popup-btn {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.memo-popup-btn.pin {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.memo-popup-btn.pin:hover {
+  background: #ffe0b2;
+}
+
+.memo-popup-btn.delete {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.memo-popup-btn.delete:hover {
+  background: #ffcdd2;
+}
+
+@keyframes popupFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes popupFadeOut {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes popupSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

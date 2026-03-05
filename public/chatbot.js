@@ -700,8 +700,44 @@ async function aiImproveAnswer(btn) {
 }
 
 // ========================
-// @기록 메모 기능 (토스트 + 사이드바)
+// @기록 메모 기능 (토스트 + 사이드바 + 태그 + 팝업)
 // ========================
+
+// 담당자 태그 매핑 (이름 → 풀네임 + 컬러)
+const MEMO_AUTHORS = {
+    '찬미': { name: '민찬미', color: '#e91e63', emoji: '💗' },
+    '성은': { name: '하성은', color: '#9c27b0', emoji: '💜' },
+    '나현': { name: '장나현', color: '#ff9800', emoji: '🧡' },
+    '준식': { name: '배준식', color: '#2196f3', emoji: '💙' },
+    '반석': { name: '이반석', color: '#4caf50', emoji: '💚' },
+    '동현': { name: '김동현', color: '#f44336', emoji: '❤️' },
+    '종찬': { name: '이종찬', color: '#00bcd4', emoji: '🩵' },
+    '호영': { name: '호영', color: '#ff5722', emoji: '🔥' }
+};
+
+// @이름 태그 파싱
+function parseMemoTags(content) {
+    const tags = [];
+    const tagRegex = /@(찬미|성은|나현|준식|반석|동현|종찬|호영)/g;
+    let match;
+    while ((match = tagRegex.exec(content)) !== null) {
+        const key = match[1];
+        if (MEMO_AUTHORS[key] && !tags.find(t => t.key === key)) {
+            tags.push({ key, ...MEMO_AUTHORS[key] });
+        }
+    }
+    // 태그 제거한 본문
+    const cleanContent = content.replace(tagRegex, '').replace(/\s{2,}/g, ' ').trim();
+    return { tags, cleanContent };
+}
+
+// 태그 배지 HTML
+function renderTagBadges(tags) {
+    if (!tags || tags.length === 0) return '';
+    return tags.map(t =>
+        `<span class="memo-tag" style="--tag-color:${t.color}">${t.emoji} ${t.name}</span>`
+    ).join('');
+}
 
 // 토스트 알림 표시
 function showMemoToast(message, type = 'success') {
@@ -715,7 +751,6 @@ function showMemoToast(message, type = 'success') {
         <button class="memo-toast-close" onclick="this.parentElement.remove()">✕</button>
     `;
     container.appendChild(toast);
-    // 5초 후 자동 제거
     setTimeout(() => {
         toast.classList.add('memo-toast-exit');
         setTimeout(() => toast.remove(), 400);
@@ -746,13 +781,19 @@ async function loadMemoArchive() {
             const dateStr = `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
             const pinClass = memo.pinned ? 'pinned' : '';
             const pinIcon = memo.pinned ? '📌 ' : '';
-            return `<div class="memo-archive-item ${pinClass}" data-id="${memo.id}">
-                <div class="memo-item-content">${pinIcon}${escapeHtml(memo.content)}</div>
+            const { tags, cleanContent } = parseMemoTags(memo.content);
+            const tagHtml = renderTagBadges(tags);
+            const borderColor = tags.length > 0 ? tags[0].color : null;
+            const borderStyle = borderColor ? `style="--author-color:${borderColor}"` : '';
+
+            return `<div class="memo-archive-item ${pinClass} ${tags.length > 0 ? 'has-author' : ''}" data-id="${memo.id}" ${borderStyle} onclick="openMemoPopup('${memo.id}')">
+                ${tagHtml ? `<div class="memo-tag-row">${tagHtml}</div>` : ''}
+                <div class="memo-item-content">${pinIcon}${escapeHtml(cleanContent)}</div>
                 <div class="memo-item-meta">
                     <span>${dateStr}</span>
                     <span class="memo-item-actions">
-                        <button onclick="togglePinMemo('${memo.id}')" title="${memo.pinned ? '핀 해제' : '핀 고정'}">${memo.pinned ? '📌' : '📍'}</button>
-                        <button onclick="deleteMemoById('${memo.id}')" title="삭제">🗑️</button>
+                        <button onclick="event.stopPropagation();togglePinMemo('${memo.id}')" title="${memo.pinned ? '핀 해제' : '핀 고정'}">${memo.pinned ? '📌' : '📍'}</button>
+                        <button onclick="event.stopPropagation();deleteMemoById('${memo.id}')" title="삭제">🗑️</button>
                     </span>
                 </div>
             </div>`;
@@ -762,13 +803,79 @@ async function loadMemoArchive() {
     }
 }
 
+// 메모 상세 팝업
+async function openMemoPopup(memoId) {
+    try {
+        const res = await fetch('/api/memos');
+        const data = await res.json();
+        const memo = data.memos.find(m => m.id === memoId);
+        if (!memo) return;
+
+        const date = new Date(memo.createdAt);
+        const fullDate = `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+        const { tags, cleanContent } = parseMemoTags(memo.content);
+        const tagHtml = renderTagBadges(tags);
+
+        // 기존 팝업 제거
+        const old = document.getElementById('memoPopupOverlay');
+        if (old) old.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'memoPopupOverlay';
+        overlay.className = 'memo-popup-overlay';
+        overlay.onclick = (e) => { if (e.target === overlay) closeMemoPopup(); };
+
+        overlay.innerHTML = `
+            <div class="memo-popup">
+                <div class="memo-popup-header">
+                    <h3>📝 메모 상세</h3>
+                    <button class="memo-popup-close" onclick="closeMemoPopup()">✕</button>
+                </div>
+                <div class="memo-popup-body">
+                    ${tagHtml ? `<div class="memo-popup-tags">${tagHtml}</div>` : ''}
+                    <div class="memo-popup-content">${escapeHtml(cleanContent)}</div>
+                    <div class="memo-popup-date">📅 ${fullDate}</div>
+                    <div class="memo-popup-status">
+                        ${memo.pinned ? '<span class="memo-popup-pin">📌 핀 고정됨</span>' : ''}
+                        <span class="memo-popup-author">작성: ${memo.author || '직원'}</span>
+                    </div>
+                </div>
+                <div class="memo-popup-footer">
+                    <button class="memo-popup-btn pin" onclick="togglePinMemo('${memo.id}');closeMemoPopup();">
+                        ${memo.pinned ? '📌 핀 해제' : '📍 핀 고정'}
+                    </button>
+                    <button class="memo-popup-btn delete" onclick="if(confirm('이 메모를 삭제하시겠습니까?')){deleteMemoById('${memo.id}');closeMemoPopup();}">
+                        🗑️ 삭제
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        // ESC 닫기
+        document.addEventListener('keydown', memoPopupEscHandler);
+    } catch (e) {
+        showMemoToast('메모 열기 실패', 'error');
+    }
+}
+
+function closeMemoPopup() {
+    const overlay = document.getElementById('memoPopupOverlay');
+    if (overlay) {
+        overlay.classList.add('memo-popup-exit');
+        setTimeout(() => overlay.remove(), 250);
+    }
+    document.removeEventListener('keydown', memoPopupEscHandler);
+}
+
+function memoPopupEscHandler(e) {
+    if (e.key === 'Escape') closeMemoPopup();
+}
+
 // @기록 명령어 핸들러
 async function handleMemoCommand(message) {
     const content = message.replace(/^@기록\s*/, '').trim();
 
-    // @기록 or @기록 목록 → 사이드바 열기 + 로딩
     if (!content || content === '목록') {
-        // 사이드바 열고 기록보관소 하이라이트
         document.getElementById('sidebar').classList.add('open');
         await loadMemoArchive();
         const section = document.querySelector('.memo-archive-section');
@@ -780,7 +887,6 @@ async function handleMemoCommand(message) {
         return;
     }
 
-    // @기록 전체삭제
     if (content === '전체삭제') {
         try {
             const res = await fetch('/api/memos');
@@ -801,7 +907,6 @@ async function handleMemoCommand(message) {
         return;
     }
 
-    // @기록 삭제 [번호]
     const deleteMatch = content.match(/^삭제\s+(\d+)$/);
     if (deleteMatch) {
         const idx = parseInt(deleteMatch[1]) - 1;
@@ -823,16 +928,19 @@ async function handleMemoCommand(message) {
         return;
     }
 
-    // 기본: 메모 저장 → 토스트 알림
+    // 메모 저장 — @이름 태그 자동 추출
+    const { tags } = parseMemoTags(content);
+    const authorName = tags.length > 0 ? tags.map(t => t.name).join(', ') : '직원';
     try {
         const res = await fetch('/api/memos', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content, author: '직원' })
+            body: JSON.stringify({ content, author: authorName })
         });
         const data = await res.json();
         if (data.success) {
-            showMemoToast(`메모 저장 완료: "${content}"`, 'success');
+            const tagInfo = tags.length > 0 ? ` [${tags.map(t => t.emoji + t.name).join(', ')}]` : '';
+            showMemoToast(`메모 저장 완료${tagInfo}`, 'success');
             await loadMemoArchive();
         } else {
             showMemoToast('저장 실패: ' + (data.error || '알 수 없는 오류'), 'error');
@@ -848,15 +956,18 @@ async function saveMemoFromSidebar() {
     const content = input.value.trim();
     if (!content) return;
     input.value = '';
+    const { tags } = parseMemoTags(content);
+    const authorName = tags.length > 0 ? tags.map(t => t.name).join(', ') : '직원';
     try {
         const res = await fetch('/api/memos', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content, author: '직원' })
+            body: JSON.stringify({ content, author: authorName })
         });
         const data = await res.json();
         if (data.success) {
-            showMemoToast(`메모 저장: "${content}"`, 'success');
+            const tagInfo = tags.length > 0 ? ` [${tags.map(t => t.emoji + t.name).join(', ')}]` : '';
+            showMemoToast(`메모 저장${tagInfo}`, 'success');
             await loadMemoArchive();
         }
     } catch (e) {
@@ -885,7 +996,7 @@ async function togglePinMemo(id) {
     }
 }
 
-// 하위 호환 (기존 deleteMemo 호출 대비)
+// 하위 호환
 async function deleteMemo(id, num) {
     await deleteMemoById(id);
 }
@@ -894,3 +1005,4 @@ async function deleteMemo(id, num) {
 document.addEventListener('DOMContentLoaded', () => {
     loadMemoArchive();
 });
+
