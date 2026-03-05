@@ -3075,7 +3075,8 @@ app.post('/api/ai/enhance', async (req, res) => {
     }
 });
 
-app.listen(PORT, async () => {
+// === 서버 시작 (포트 충돌 자동 복구 포함) ===
+const server = app.listen(PORT, async () => {
     const faqCount = loadFAQData().length;
     const learnCount = loadLearnedData().length;
     console.log(`🚀 인팸 AI 챗봇 서버 시작: http://localhost:${PORT}`);
@@ -3096,8 +3097,66 @@ app.listen(PORT, async () => {
 
     // 로컬 환경에서만 자식 서비스 실행 (클라우드에는 Python 서비스 없음)
     if (!process.env.RENDER) {
-        startContentDashboard();
+        try { startContentDashboard(); } catch (e) { /* 실행 실패 무시 */ }
     } else {
         console.log('☁️ 클라우드 환경 — 자식 서비스(콘텐츠 대시보드/Qwen) 스킵');
     }
 });
+
+// === 포트 충돌(EADDRINUSE) 자동 복구 ===
+server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+        console.log(`⚠️ 포트 ${PORT}이 이미 사용 중입니다. 기존 프로세스를 종료합니다...`);
+        const { execSync } = require('child_process');
+        try {
+            // Windows: 포트를 점유한 PID 찾아서 종료
+            const result = execSync(`netstat -ano | findstr :${PORT}`, { encoding: 'utf-8' });
+            const lines = result.trim().split('\n');
+            const pids = new Set();
+            for (const line of lines) {
+                const parts = line.trim().split(/\s+/);
+                const pid = parts[parts.length - 1];
+                if (pid && pid !== '0' && pid !== String(process.pid)) {
+                    pids.add(pid);
+                }
+            }
+            for (const pid of pids) {
+                try {
+                    execSync(`taskkill /PID ${pid} /F`, { encoding: 'utf-8' });
+                    console.log(`  🔪 PID ${pid} 종료 완료`);
+                } catch { /* 이미 종료된 경우 무시 */ }
+            }
+            // 잠시 대기 후 재시작
+            setTimeout(() => {
+                console.log('🔄 서버 재시작...');
+                app.listen(PORT, async () => {
+                    console.log(`🚀 인팸 AI 챗봇 서버 재시작 완료: http://localhost:${PORT}`);
+                    console.log('\n🔨 RAG 벡터 스토어 초기화 중...');
+                    const ragResult = await buildVectorStore();
+                    if (ragResult.success) {
+                        console.log(`✅ RAG 준비 완료: ${ragResult.totalDocuments}개 문서 인덱싱 (${ragResult.buildTime})`);
+                    }
+                });
+            }, 2000);
+        } catch (killErr) {
+            console.error(`❌ 포트 해제 실패. 수동으로 종료해 주세요: taskkill /F /IM node.exe`);
+            process.exit(1);
+        }
+    } else {
+        console.error('❌ 서버 시작 오류:', err.message);
+        process.exit(1);
+    }
+});
+
+// === Graceful Shutdown ===
+function gracefulShutdown(signal) {
+    console.log(`\n🛑 ${signal} 수신. 서버를 안전하게 종료합니다...`);
+    server.close(() => {
+        console.log('✅ 서버 종료 완료');
+        process.exit(0);
+    });
+    // 5초 내에 종료되지 않으면 강제 종료
+    setTimeout(() => { process.exit(0); }, 5000);
+}
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
