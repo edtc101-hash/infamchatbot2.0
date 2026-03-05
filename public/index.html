@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>인팸 CS 어시스턴트 | InteriorFamily 내부 도구</title>
+  <meta name="description" content="인팸(InteriorFamily) CS 어시스턴트 - 고객 질문에 대한 답변을 생성하여 직원이 바로 전달할 수 있습니다.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#3a7d44">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="인팸 챗봇">
+  <link rel="apple-touch-icon" href="/infam-logo.svg">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    /* 콘텐츠 뷰 전환 */
+    .chat-main {
+      transition: opacity 0.2s ease;
+    }
+
+    .chat-main.view-hidden {
+      display: none !important;
+    }
+
+    .content-view {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .content-view.view-active {
+      display: flex;
+    }
+
+    .content-view-header {
+      height: var(--header-h);
+      background: var(--bg-header);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 24px;
+      flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .content-view-header .cv-icon {
+      width: 42px;
+      height: 42px;
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+      flex-shrink: 0;
+    }
+
+    .content-view-header .cv-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .content-view-header .cv-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .content-view-header .cv-actions {
+      margin-left: auto;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .cv-badge {
+      padding: 5px 12px;
+      background: rgba(124, 58, 237, 0.1);
+      border: 1px solid rgba(124, 58, 237, 0.25);
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #a855f7;
+    }
+
+    .cv-external-btn {
+      background: var(--white);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 12px;
+      font-family: inherit;
+      font-weight: 500;
+      padding: 6px 12px;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .cv-external-btn:hover {
+      background: rgba(124, 58, 237, 0.06);
+      border-color: rgba(124, 58, 237, 0.3);
+      color: #7c3aed;
+    }
+
+    .content-iframe-wrap {
+      flex: 1;
+      position: relative;
+      background: #f8fafc;
+    }
+
+    .content-iframe-wrap iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    .cv-loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: var(--white);
+      gap: 14px;
+      z-index: 5;
+    }
+
+    .cv-loading.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
+    .cv-spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid rgba(124, 58, 237, 0.15);
+      border-top-color: #a855f7;
+      border-radius: 50%;
+      animation: cvspin 0.8s linear infinite;
+    }
+
+    @keyframes cvspin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .cv-error {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: var(--white);
+      gap: 14px;
+      z-index: 5;
+    }
+
+    .cv-error.show {
+      display: flex;
+    }
+
+    .cv-error h3 {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .cv-error p {
+      font-size: 13px;
+      color: var(--text-muted);
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    .cv-error .cv-cmd {
+      font-size: 12px;
+      color: var(--text-muted);
+      background: var(--gray-50);
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      font-family: 'Consolas', monospace;
+    }
+
+    .cv-retry-btn {
+      padding: 10px 22px;
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(124, 58, 237, 0.25);
+    }
+
+    .cv-retry-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(124, 58, 237, 0.35);
+    }
+
+    /* ─── 학습 모드 사이드 패널 (inbox 스타일) ─── */
+    .learn-side-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 520px;
+      height: 100vh;
+      background: var(--white);
+      border-left: 1px solid var(--border-color);
+      box-shadow: -8px 0 40px rgba(0, 0, 0, 0.12);
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .learn-side-panel.open {
+      transform: translateX(0);
+    }
+
+    .learn-panel-header {
+      height: 56px;
+      background: linear-gradient(135deg, #059669, #34d399);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 20px;
+      flex-shrink: 0;
+    }
+
+    .learn-panel-header .lp-icon {
+      font-size: 22px;
+    }
+
+    .learn-panel-header .lp-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .learn-panel-header .lp-sub {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.75);
+    }
+
+    .learn-panel-header .lp-actions {
+      margin-left: auto;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .lp-btn {
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: inherit;
+      font-weight: 500;
+      padding: 5px 10px;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .lp-btn:hover {
+      background: rgba(255, 255, 255, 0.35);
+    }
+
+    .lp-close-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #fff;
+      cursor: pointer;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .lp-close-btn:hover {
+      background: rgba(255, 255, 255, 0.4);
+    }
+
+    .learn-panel-body {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .learn-panel-body iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    .learn-panel-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.2);
+      z-index: 199;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
+    .learn-panel-backdrop.show {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    @media (max-width: 768px) {
+      .learn-side-panel {
+        width: 100%;
+      }
+    }
+
+    @media (min-width: 769px) and (max-width: 1200px) {
+      .learn-side-panel {
+        width: 450px;
+      }
+    }
+  </style>
+  <script>
+    // Service Worker 완전 제거 + 캐시 정리 (오프라인 오류 근본 차단)
+    (async function cleanupSW() {
+      try {
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          for (const reg of registrations) {
+            await reg.unregister();
+            console.log('🧹 SW 해제 완료:', reg.scope);
+          }
+        }
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          for (const key of keys) {
+            await caches.delete(key);
+          }
+          if (keys.length > 0) console.log('🧹 캐시 삭제 완료:', keys);
+        }
+        // manifest 태그 제거 (PWA 재등록 방지)
+        const manifestLink = document.querySelector('link[rel="manifest"]');
+        if (manifestLink) manifestLink.remove();
+      } catch (e) {
+        console.warn('SW 정리 중 오류:', e);
+      }
+    })();
+  </script>
+</head>
+
+<body>
+  <!-- 배경 파티클 -->
+  <div class="bg-particles">
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+  </div>
+
+  <div class="app-container">
+    <!-- 사이드바 -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand-logo">
+          <img src="infam-logo.svg" alt="InFam" class="logo-icon" style="padding: 0; object-fit: contain;">
+          <div class="brand-text">
+            <span class="brand-name">인팸</span>
+            <span class="brand-sub">InteriorFamily</span>
+          </div>
+        </div>
+        <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">✕</button>
+      </div>
+
+      <div class="sidebar-nav">
+        <h3 class="section-label">🤖 인팸 CS/CX AI</h3>
+        <a href="javascript:void(0)" class="nav-item active" id="navChat" onclick="switchView('chat')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"></path>
+          </svg>
+          <span>챗봇</span>
+        </a>
+        <a href="javascript:void(0)" class="nav-item" id="navLearn" onclick="switchView('learn')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"></path>
+            <path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"></path>
+          </svg>
+          <span>챗봇 밥주기</span>
+        </a>
+        <a href="javascript:void(0)" class="nav-item" id="navUpload" onclick="switchView('upload')"
+          style="display:none">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"></path>
+          </svg>
+          <span>텍스트 업로드</span>
+        </a>
+        <a href="javascript:void(0)" class="nav-item" id="navErp" onclick="switchView('erp')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 20V10M12 20V4M6 20v-6"></path>
+          </svg>
+          <span>ERP 대시보드</span>
+        </a>
+      </div>
+
+      <div class="sidebar-section">
+        <h3 class="section-label">🎨 인팸 디자인 AI</h3>
+        <a href="javascript:void(0)" class="nav-item" id="navDesign" onclick="switchView('design')">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"></path>
+            <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+          </svg>
+          <span>이미지 제작소</span>
+        </a>
+        <a href="javascript:void(0)" class="nav-item" id="navContent" onclick="switchView('content')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 7l-7 5 7 5V7z"></path>
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+          </svg>
+          <span>콘텐츠 자동화</span>
+        </a>
+        <a href="javascript:void(0)" class="nav-item" id="navMarketing" onclick="switchView('marketing')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+          <span>마케팅 인사이트</span>
+        </a>
+        <a href="javascript:void(0)" class="nav-item" id="navHalbuji" onclick="switchView('halbuji')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+          <span>할부지 편집기</span>
+        </a>
+      </div>
+
+      <div class="sidebar-section">
+        <h3 class="section-label">빠른 질문</h3>
+        <div class="quick-buttons">
+          <button class="quick-btn" onclick="sendQuickMessage('제품 종류가 어떻게 되나요?')">
+            <span class="quick-icon">🏠</span>
+            <span>제품 소개</span>
+          </button>
+          <button class="quick-btn" onclick="sendQuickMessage('배송은 어떻게 진행되나요?')">
+            <span class="quick-icon">🚛</span>
+            <span>배송 안내</span>
+          </button>
+          <button class="quick-btn" onclick="sendQuickMessage('시공 방법이 어떻게 되나요?')">
+            <span class="quick-icon">🔨</span>
+            <span>시공 방법</span>
+          </button>
+          <button class="quick-btn" onclick="sendQuickMessage('가격과 스펙이 궁금합니다')">
+            <span class="quick-icon">💰</span>
+            <span>가격/스펙</span>
+          </button>
+          <button class="quick-btn" onclick="sendQuickMessage('샘플을 받아볼 수 있나요?')">
+            <span class="quick-icon">📦</span>
+            <span>샘플 구매</span>
+          </button>
+          <button class="quick-btn" onclick="sendQuickMessage('쇼룸 위치가 어디인가요?')">
+            <span class="quick-icon">📍</span>
+            <span>쇼룸 위치</span>
+          </button>
+          <button class="quick-btn" onclick="sendQuickMessage('재고 확인을 하고 싶습니다. 어떤 제품의 재고를 확인할 수 있나요?')">
+            <span class="quick-icon">📊</span>
+            <span>재고 확인</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <h3 class="section-label">🔗 바로가기</h3>
+        <div class="link-buttons">
+          <a href="https://link.inpock.co.kr/interiorfamily" target="_blank" class="link-btn">
+            <span>📋</span> 카탈로그 보기
+          </a>
+          <a href="https://buly.kr/6MrEuTY" target="_blank" class="link-btn">
+            <span>✨</span> 샘플 구매
+          </a>
+          <a href="https://www.youtube.com/@interior__family" target="_blank" class="link-btn">
+            <span>🎥</span> 유튜브
+          </a>
+          <a href="https://www.instagram.com/interior__family/" target="_blank" class="link-btn">
+            <span>📸</span> 인스타그램
+          </a>
+          <a href="https://login.ecount.com/Login/" target="_blank" class="link-btn">
+            <span>📊</span> 이카운트ERP
+          </a>
+          <a href="https://www.instagram.com/interior_grandpa/" target="_blank" class="link-btn">
+            <span>🏗️</span> 시공사례
+          </a>
+          <a href="/company.html" class="link-btn">
+            <span>🏢</span> 회사소개
+          </a>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <h3 class="section-label">담당자 연락처</h3>
+        <div class="contact-list">
+          <div class="contact-item">
+            <span class="contact-name">김동현 팀장</span>
+            <a href="tel:010-6802-9124" class="contact-phone">010-6802-9124</a>
+          </div>
+          <div class="contact-item">
+            <span class="contact-name">이반석 프로</span>
+            <a href="tel:010-7310-9124" class="contact-phone">010-7310-9124</a>
+          </div>
+          <div class="contact-item">
+            <span class="contact-name">장나현 프로</span>
+            <a href="tel:010-9744-9124" class="contact-phone">010-9744-9124</a>
+          </div>
+          <div class="contact-item">
+            <span class="contact-name">민찬미 프로</span>
+            <a href="tel:010-2928-9124" class="contact-phone">010-2928-9124</a>
+          </div>
+          <div class="contact-item">
+            <span class="contact-name">배준식 프로</span>
+            <a href="tel:010-4489-9124" class="contact-phone">010-4489-9124</a>
+          </div>
+          <div class="contact-item">
+            <span class="contact-name">하성은 프로</span>
+            <a href="tel:010-7461-6300" class="contact-phone">010-7461-6300</a>
+          </div>
+          <div class="contact-item">
+            <span class="contact-name">이종찬 팀장</span>
+            <a href="tel:010-7453-9124" class="contact-phone">010-7453-9124</a>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 메인 채팅 영역 -->
+    <main class="chat-main">
+      <!-- 헤더 -->
+      <header class="chat-header">
+        <button class="menu-btn" id="menuBtn" onclick="toggleSidebar()">☰</button>
+        <div class="header-info">
+          <div class="bot-avatar">
+            <img src="infam-logo.svg" alt="InFam" class="avatar-inner" style="padding: 0; object-fit: contain;">
+            <div class="status-dot"></div>
+          </div>
+          <div class="header-text">
+            <h1 class="header-title">인팸 CS 어시스턴트</h1>
+            <p class="header-status">
+              <span class="status-indicator"></span>
+              온라인 · 고객 답변 생성 도우미
+            </p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <span class="session-badge" id="sessionBadge" title="대화 히스토리 유지 중">💬 연속대화</span>
+          <button class="clear-btn" onclick="clearChat()" title="대화 초기화">🔄</button>
+        </div>
+      </header>
+
+      <!-- 채팅 메시지 영역 -->
+      <div class="chat-messages" id="chatMessages">
+        <!-- 웰컴 메시지 -->
+        <div class="welcome-section" id="welcomeSection">
+          <div class="welcome-logo">
+            <img src="infam-logo.svg" alt="InFam" class="welcome-logo-inner"
+              style="width: 50px; height: 50px; object-fit: contain;">
+          </div>
+          <h2 class="welcome-title">인팸 CS 어시스턴트 👋</h2>
+          <p class="welcome-subtitle">고객의 질문을 입력하면, 바로 전달 가능한 답변을 생성해 드립니다.<br>생성된 답변의 <strong>📋 고객 전달용 복사</strong> 버튼을
+            눌러 카카오톡/문자로 보내세요!</p>
+
+          <div class="feature-chips">
+            <div class="chip">🏠 벽장재 전문</div>
+            <div class="chip">🚛 전국 배송</div>
+            <div class="chip">📋 1,000+ 제품</div>
+            <div class="chip">⚡ 당일 배송 가능</div>
+          </div>
+
+          <!-- 웰컴 빠른 질문 -->
+          <div class="welcome-quick-questions">
+            <p class="welcome-suggest-title">자주 들어오는 고객 질문을 클릭해 보세요</p>
+            <div class="welcome-quick-btns">
+              <button class="welcome-quick-btn" onclick="sendQuickMessage('제품 종류가 어떻게 되나요?')">🏠 제품 종류</button>
+              <button class="welcome-quick-btn" onclick="sendQuickMessage('배송은 어떻게 진행되나요?')">🚛 배송 안내</button>
+              <button class="welcome-quick-btn" onclick="sendQuickMessage('시공 방법이 어떻게 되나요?')">🔨 시공 방법</button>
+              <button class="welcome-quick-btn" onclick="sendQuickMessage('샘플을 받아볼 수 있나요?')">📦 샘플 구매</button>
+              <button class="welcome-quick-btn" onclick="sendQuickMessage('재고 확인은 어떻게 하나요?')">📊 재고 확인</button>
+              <button class="welcome-quick-btn" onclick="sendQuickMessage('쇼룸 위치가 어디인가요?')">📍 쇼룸 위치</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 담당자 연락처 하단 바 (항상 표시) -->
+      <div class="contact-bar">
+        <div class="contact-bar-inner">
+          <span class="contact-bar-label">담당자</span>
+          <a href="tel:010-6802-9124" class="contact-bar-item">김동현 <strong>010-6802-9124</strong></a>
+          <span class="contact-bar-divider">|</span>
+          <a href="tel:010-7310-9124" class="contact-bar-item">이반석 <strong>010-7310-9124</strong></a>
+          <span class="contact-bar-divider">|</span>
+          <a href="tel:010-9744-9124" class="contact-bar-item">장나현 <strong>010-9744-9124</strong></a>
+          <span class="contact-bar-divider">|</span>
+          <a href="tel:010-2928-9124" class="contact-bar-item">민찬미 <strong>010-2928-9124</strong></a>
+          <span class="contact-bar-divider">|</span>
+          <a href="tel:010-4489-9124" class="contact-bar-item">배준식 <strong>010-4489-9124</strong></a>
+          <span class="contact-bar-divider">|</span>
+          <a href="tel:010-7461-6300" class="contact-bar-item">하성은 <strong>010-7461-6300</strong></a>
+          <span class="contact-bar-divider">|</span>
+          <a href="tel:010-7453-9124" class="contact-bar-item">이종찬 <strong>010-7453-9124</strong></a>
+        </div>
+      </div>
+
+      <!-- 입력 영역 -->
+      <div class="chat-input-area">
+        <div class="input-container">
+          <div class="input-wrapper">
+            <textarea id="messageInput" placeholder="고객 질문을 붙여넣기 하세요... (예: 월패널 시공 방법이 궁금해요)" rows="1" maxlength="500"
+              onkeydown="handleKeyDown(event)" oninput="autoResize(this)"></textarea>
+            <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
+          <p class="input-hint">Enter로 전송 · Shift+Enter로 줄바꿈</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- 인라인 뷰들 (같은 메인 영역에서 iframe으로 로드) -->
+
+    <!-- 학습 모드 뷰 (챗봇 페이지 표시) -->
+    <div class="content-view" id="learnView">
+      <header class="content-view-header">
+        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+        <div class="cv-icon" style="background:linear-gradient(135deg,#059669,#34d399)">📚</div>
+        <div>
+          <div class="cv-title">학습 모드</div>
+          <div class="cv-sub">챗봇 학습 데이터 확인 및 관리</div>
+        </div>
+        <div class="cv-actions">
+          <span class="cv-badge"
+            style="background:rgba(5,150,105,0.1);border-color:rgba(5,150,105,0.25);color:#059669;">🤖 AI 챗봇</span>
+        </div>
+      </header>
+      <div class="content-iframe-wrap">
+        <iframe id="learnViewFrame" src="" style="width:100%;height:100%;border:none;"></iframe>
+      </div>
+    </div>
+
+    <!-- 텍스트 업로드 뷰 -->
+    <div class="content-view" id="uploadView">
+      <header class="content-view-header">
+        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+        <div class="cv-icon" style="background:linear-gradient(135deg,#2563eb,#60a5fa)">📤</div>
+        <div>
+          <div class="cv-title">텍스트 업로드</div>
+          <div class="cv-sub">파일 기반 지식 업로드</div>
+        </div>
+        <div class="cv-actions">
+          <button class="cv-external-btn" onclick="window.open('/upload.html','_blank')" title="새 창에서 열기">↗ 새 창</button>
+        </div>
+      </header>
+      <div class="content-iframe-wrap">
+        <iframe id="uploadFrame" src="" style="width:100%;height:100%;border:none;"></iframe>
+      </div>
+    </div>
+
+    <!-- 콘텐츠 자동화 뷰 -->
+    <div class="content-view" id="contentView">
+      <header class="content-view-header">
+        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+        <div class="cv-icon">🎬</div>
+        <div>
+          <div class="cv-title">콘텐츠 자동화 대시보드</div>
+          <div class="cv-sub">숏폼 영상 기획 → 제작 자동화</div>
+        </div>
+        <div class="cv-actions">
+          <span class="cv-badge">🎥 InFam Studio</span>
+          <button class="cv-external-btn" onclick="window.open('http://localhost:8000','_blank')" title="새 창에서 열기">↗ 새
+            창</button>
+        </div>
+      </header>
+      <div class="content-iframe-wrap">
+        <div class="cv-loading" id="cvLoading">
+          <div class="cv-spinner"></div>
+          <p style="font-size:13px;color:var(--text-muted)">대시보드 연결 중...</p>
+        </div>
+        <div class="cv-error" id="cvError">
+          <div style="font-size:44px;opacity:0.5">🔌</div>
+          <h3>서버에 연결할 수 없습니다</h3>
+          <p>콘텐츠 자동화 백엔드 서버가 실행 중인지 확인해주세요.</p>
+          <div class="cv-cmd">cd 콘텐츠 자동화 대시보드\backend<br>uvicorn main:app --reload --port 8000</div>
+          <button class="cv-retry-btn" onclick="loadContentDashboard()">🔄 다시 연결</button>
+        </div>
+        <iframe id="contentFrame" src="" style="display:none;"></iframe>
+      </div>
+    </div>
+
+    <!-- FAQ 관리 뷰 -->
+    <div class="content-view" id="adminView">
+      <header class="content-view-header">
+        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+        <div class="cv-icon" style="background:linear-gradient(135deg,#d97706,#fbbf24)">⚙️</div>
+        <div>
+          <div class="cv-title">FAQ 관리</div>
+          <div class="cv-sub">FAQ 데이터 추가·수정·삭제</div>
+        </div>
+        <div class="cv-actions">
+          <button class="cv-external-btn" onclick="window.open('/admin.html','_blank')" title="새 창에서 열기">↗ 새 창</button>
+        </div>
+      </header>
+      <div class="content-iframe-wrap">
+        <iframe id="adminFrame" src="" style="width:100%;height:100%;border:none;"></iframe>
+      </div>
+    </div>
+
+    <!-- 이미지 제작소 뷰 -->
+    <div class="content-view" id="designView">
+      <div class="content-iframe-wrap" style="height:100%;">
+        <iframe id="designFrame" src="" style="width:100%;height:100%;border:none;"></iframe>
+      </div>
+    </div>
+
+    <!-- ERP 대시보드 뷰 -->
+    <div class="content-view" id="erpView">
+      <header class="content-view-header">
+        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+        <div class="cv-icon" style="background:linear-gradient(135deg,#c9a96e,#f0d5a0)">📊</div>
+        <div>
+          <div class="cv-title">ERP 대시보드</div>
+          <div class="cv-sub">Ecount ERP 재고·매출·매입 현황</div>
+        </div>
+        <div class="cv-actions">
+          <span class="cv-badge"
+            style="background:rgba(176,141,87,0.1);border-color:rgba(176,141,87,0.25);color:#b08d57;">📊 Ecount
+            ERP</span>
+          <button class="cv-external-btn" onclick="window.open('/erp-dashboard.html','_blank')" title="새 창에서 열기">↗ 새
+            창</button>
+        </div>
+      </header>
+      <div class="content-iframe-wrap">
+        <iframe id="erpFrame" src="" style="width:100%;height:100%;border:none;"></iframe>
+      </div>
+    </div>
+
+    <!-- 마케팅 인사이트 뷰 -->
+    <div class="content-view" id="marketingView">
+      <header class="content-view-header">
+        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+        <div class="cv-icon" style="background:linear-gradient(135deg,#6366f1,#a855f7)">📊</div>
+        <div>
+          <div class="cv-title">마케팅 인사이트</div>
+          <div class="cv-sub">판매 순위 분석 · AI 마케팅 전략</div>
+        </div>
+        <div class="cv-actions">
+          <span class="cv-badge"
+            style="background:rgba(99,102,241,0.1);border-color:rgba(99,102,241,0.25);color:#6366f1;">📈 Infam
+            Analysis</span>
+          <button class="cv-external-btn" onclick="window.open('/marketing-insight.html','_blank')" title="새 창에서 열기">↗ 새
+            창</button>
+        </div>
+      </header>
+      <div class="content-iframe-wrap">
+        <iframe id="marketingFrame" src="" style="width:100%;height:100%;border:none;"></iframe>
+      </div>
+    </div>
+
+    <!-- 할부지 편집기 뷰 -->
+    <div class="content-view" id="halbujiView">
+      <header class="content-view-header">
+        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+        <div class="cv-icon" style="background:linear-gradient(135deg,#f97316,#fb923c)">🖼️</div>
+        <div>
+          <div class="cv-title">할부지 편집기</div>
+          <div class="cv-sub">이미지 편집 · AI 최적화 · 워터마크</div>
+        </div>
+        <div class="cv-actions">
+          <span class="cv-badge"
+            style="background:rgba(249,115,22,0.1);border-color:rgba(249,115,22,0.25);color:#f97316;">🖼️ Image
+            Editor</span>
+          <button class="cv-external-btn" onclick="window.open('/image-editor.html','_blank')" title="새 창에서 열기">↗ 새
+            창</button>
+        </div>
+      </header>
+      <div class="content-iframe-wrap">
+        <iframe id="halbujiFrame" src="" style="width:100%;height:100%;border:none;"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- 학습 모드 사이드 패널 (inbox 스타일) -->
+  <div class="learn-panel-backdrop" id="learnBackdrop" onclick="closeLearnPanel()"></div>
+  <div class="learn-side-panel" id="learnSidePanel">
+    <div class="learn-panel-header">
+      <span class="lp-icon">📖</span>
+      <div>
+        <div class="lp-title">학습 모드</div>
+        <div class="lp-sub">대화 기반 AI 학습</div>
+      </div>
+      <div class="lp-actions">
+        <button class="lp-btn" onclick="window.open('/learn.html','_blank')" title="새 창에서 열기">↗ 새 창</button>
+        <button class="lp-close-btn" onclick="closeLearnPanel()" title="닫기">✕</button>
+      </div>
+    </div>
+    <div class="learn-panel-body">
+      <iframe id="learnFrame" src=""></iframe>
+    </div>
+  </div>
+
+  <script src="chatbot.js"></script>
+  <script>
+    // === 뷰 전환 (챗봇 ↔ 학습 ↔ 업로드 ↔ 콘텐츠 ↔ FAQ관리) ===
+    const viewConfig = {
+      chat: { viewId: null, navId: 'navChat', frameId: null, src: null },
+      learn: { viewId: 'learnView', navId: 'navLearn', frameId: 'learnViewFrame', src: '/learn.html' },
+      upload: { viewId: 'uploadView', navId: 'navUpload', frameId: 'uploadFrame', src: '/upload.html' },
+      content: { viewId: 'contentView', navId: 'navContent', frameId: 'contentFrame', src: null },
+      admin: { viewId: 'adminView', navId: 'navAdmin', frameId: 'adminFrame', src: '/admin.html' },
+      design: { viewId: 'designView', navId: 'navDesign', frameId: 'designFrame', src: '/design-studio.html' },
+      erp: { viewId: 'erpView', navId: 'navErp', frameId: 'erpFrame', src: '/erp-dashboard.html' },
+      marketing: { viewId: 'marketingView', navId: 'navMarketing', frameId: 'marketingFrame', src: '/marketing-insight.html' },
+      halbuji: { viewId: 'halbujiView', navId: 'navHalbuji', frameId: 'halbujiFrame', src: '/image-editor.html' },
+    };
+    let contentLoaded = false;
+    let learnPanelLoaded = false;
+    const loadedFrames = new Set();
+
+    // === 학습 모드 사이드 패널 토글 ===
+    function openLearnPanel() {
+      const panel = document.getElementById('learnSidePanel');
+      const backdrop = document.getElementById('learnBackdrop');
+      panel.classList.add('open');
+      backdrop.classList.add('show');
+      document.getElementById('navLearn').classList.add('active');
+
+      // 첫 로드 시에만 iframe src 설정
+      if (!learnPanelLoaded) {
+        document.getElementById('learnFrame').src = '/learn.html';
+        learnPanelLoaded = true;
+      }
+    }
+
+    function closeLearnPanel() {
+      const panel = document.getElementById('learnSidePanel');
+      const backdrop = document.getElementById('learnBackdrop');
+      panel.classList.remove('open');
+      backdrop.classList.remove('show');
+      document.getElementById('navLearn').classList.remove('active');
+    }
+
+    function toggleLearnPanel() {
+      const panel = document.getElementById('learnSidePanel');
+      if (panel.classList.contains('open')) {
+        closeLearnPanel();
+      } else {
+        openLearnPanel();
+      }
+    }
+
+    function switchView(view) {
+      const chatMain = document.querySelector('.chat-main');
+
+      // 학습 패널 닫기 (다른 뷰로 전환 시)
+      closeLearnPanel();
+
+      // 모든 뷰 숨기기
+      document.querySelectorAll('.content-view').forEach(v => v.classList.remove('view-active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+      if (view === 'chat') {
+        chatMain.classList.remove('view-hidden');
+        document.getElementById('navChat').classList.add('active');
+      } else {
+        chatMain.classList.add('view-hidden');
+        const cfg = viewConfig[view];
+        if (!cfg) return;
+
+        // 뷰 표시
+        if (cfg.viewId) document.getElementById(cfg.viewId).classList.add('view-active');
+        if (cfg.navId) document.getElementById(cfg.navId).classList.add('active');
+
+        // 콘텐츠 자동화는 특별 처리 (외부 서버)
+        if (view === 'content') {
+          if (!contentLoaded) loadContentDashboard();
+        } else if (cfg.src && cfg.frameId && !loadedFrames.has(view)) {
+          // 첫 로드 시에만 iframe src 설정
+          document.getElementById(cfg.frameId).src = cfg.src;
+          loadedFrames.add(view);
+        }
+      }
+      // 모바일 사이드바 닫기
+      if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('open');
+    }
+
+    function loadContentDashboard() {
+      const loading = document.getElementById('cvLoading');
+      const error = document.getElementById('cvError');
+      const frame = document.getElementById('contentFrame');
+
+      loading.classList.remove('hidden');
+      error.classList.remove('show');
+      frame.style.display = 'none';
+
+      fetch('http://localhost:8000/', { mode: 'no-cors' })
+        .then(() => {
+          frame.src = 'http://localhost:8000/';
+          frame.style.display = 'block';
+          frame.onload = () => {
+            loading.classList.add('hidden');
+            contentLoaded = true;
+          };
+          setTimeout(() => { loading.classList.add('hidden'); }, 10000);
+        })
+        .catch(() => {
+          loading.classList.add('hidden');
+          error.classList.add('show');
+        });
+    }
+  </script>
+</body>
+
+</html>

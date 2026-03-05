@@ -1,0 +1,10 @@
+{
+  "success": true,
+  "totalDocuments": 1851,
+  "faqCount": 112,
+  "productCount": 21,
+  "learnedCount": 1665,
+  "failedEmbeddings": 0,
+  "buildTime": "4.0s",
+  "builtAt": "2026-03-05T00:23:32.669Z"
+}
